@@ -7,7 +7,6 @@ import { useAnimateStore } from "../stores/animate";
 import type { RouteRecordRaw } from "vue-router";
 // 引入路由模块
 import { SurfaceItem } from "./modules/surface";
-import { UndergroundItem } from "./modules/underground";
 import { PanyidongItem } from "./modules/panyidong";
 import { HanshuicengItem } from "./modules/hanshuiceng";
 
@@ -28,10 +27,6 @@ const routes: Array<RouteRecordRaw> = [
     // Surface 路由模块
     ...SurfaceItem,
 
-    // Underground 路由模块
-    ...UndergroundItem,
-
-
     // 潘一东矿区 路由模块
     ...PanyidongItem,
 
@@ -45,7 +40,7 @@ const routes: Array<RouteRecordRaw> = [
 ];
 
 const router = createRouter({
-    history: createWebHashHistory(import.meta.env.BASE_URL || ""),
+    history: createWebHashHistory(),
     routes,
 });
 // 使用路由拦截进行动画切换

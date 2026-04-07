@@ -36,13 +36,12 @@ const route = useRoute();
 const isSceneMenuOpen = ref(false);
 
 const scenes = [
+  { name: "地面场景", path: "/surface" },
   { name: "废弃矿井", path: "/panyidong" },
-  // { name: "含水层", path: "/underground/aquifer" },
   { name: "含水层", path: "/hanshuiceng" },
-  { name: "盐穴", path: "/underground/mines" },
 ];
 
-const currentSceneName = ref("废弃矿井");
+const currentSceneName = ref("地面场景");
 
 // 时间相关
 const timeStr = ref('');
@@ -56,7 +55,7 @@ const toggleSceneMenu = () => {
 
 // 首页点击
 const handleHome = () => {
-  router.push("/home");
+  router.push("/surface");
 };
 
 const handleSceneSelect = (scene: { name: string, path: string }) => {
