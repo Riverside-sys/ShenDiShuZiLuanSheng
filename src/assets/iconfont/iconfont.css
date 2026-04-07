@@ -1,0 +1,91 @@
+@font-face {
+  font-family: 'iconfont'; /* Project id 4540678 */
+  src:
+    url('iconfont.woff2?t=1717049881160') format('woff2'),
+    url('iconfont.woff?t=1717049881160') format('woff'),
+    url('iconfont.ttf?t=1717049881160') format('truetype');
+}
+
+.iconfont {
+  font-family: 'iconfont' !important;
+  font-size: 16px;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-heading-face:before {
+  content: '\e612';
+}
+
+.icon-ventilation:before {
+  content: '\e60c';
+}
+
+.icon-hydrological:before {
+  content: '\e60d';
+}
+
+.icon-gas:before {
+  content: '\e60e';
+}
+
+.icon-top-plate:before {
+  content: '\e60f';
+}
+
+.icon-fire:before {
+  content: '\e610';
+}
+
+.icon-safety:before {
+  content: '\e611';
+}
+
+.icon-mining-face:before {
+  content: '\e606';
+}
+
+.icon-power-supply:before {
+  content: '\e607';
+}
+
+.icon-pressure-air:before {
+  content: '\e608';
+}
+
+.icon-ventilator:before {
+  content: '\e609';
+}
+
+.icon-main-tower:before {
+  content: '\e60a';
+}
+
+.icon-drainage:before {
+  content: '\e60b';
+}
+
+.icon-stop:before {
+  content: '\e600';
+}
+
+.icon-motor-fault:before {
+  content: '\e601';
+}
+
+.icon-communication-failure:before {
+  content: '\e602';
+}
+
+.icon-motor-time-out:before {
+  content: '\e603';
+}
+
+.icon-current:before {
+  content: '\e604';
+}
+
+.icon-speed:before {
+  content: '\e605';
+}

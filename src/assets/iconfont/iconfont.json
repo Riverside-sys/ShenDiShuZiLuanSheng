@@ -1,0 +1,142 @@
+{
+  "id": "4540678",
+  "name": "智能综合管控平台",
+  "font_family": "iconfont",
+  "css_prefix_text": "icon-",
+  "description": "同贺佳业智能综合管控平台",
+  "glyphs": [
+    {
+      "icon_id": "40541345",
+      "name": "heading-face",
+      "font_class": "heading-face",
+      "unicode": "e612",
+      "unicode_decimal": 58898
+    },
+    {
+      "icon_id": "40441114",
+      "name": "ventilation",
+      "font_class": "ventilation",
+      "unicode": "e60c",
+      "unicode_decimal": 58892
+    },
+    {
+      "icon_id": "40441113",
+      "name": "hydrological",
+      "font_class": "hydrological",
+      "unicode": "e60d",
+      "unicode_decimal": 58893
+    },
+    {
+      "icon_id": "40441112",
+      "name": "gas",
+      "font_class": "gas",
+      "unicode": "e60e",
+      "unicode_decimal": 58894
+    },
+    {
+      "icon_id": "40441111",
+      "name": "top-plate",
+      "font_class": "top-plate",
+      "unicode": "e60f",
+      "unicode_decimal": 58895
+    },
+    {
+      "icon_id": "40441110",
+      "name": "fire",
+      "font_class": "fire",
+      "unicode": "e610",
+      "unicode_decimal": 58896
+    },
+    {
+      "icon_id": "40441109",
+      "name": "safety",
+      "font_class": "safety",
+      "unicode": "e611",
+      "unicode_decimal": 58897
+    },
+    {
+      "icon_id": "40266449",
+      "name": "mining-face",
+      "font_class": "mining-face",
+      "unicode": "e606",
+      "unicode_decimal": 58886
+    },
+    {
+      "icon_id": "40266451",
+      "name": "power-supply",
+      "font_class": "power-supply",
+      "unicode": "e607",
+      "unicode_decimal": 58887
+    },
+    {
+      "icon_id": "40266452",
+      "name": "pressure-air",
+      "font_class": "pressure-air",
+      "unicode": "e608",
+      "unicode_decimal": 58888
+    },
+    {
+      "icon_id": "40266450",
+      "name": "ventilator",
+      "font_class": "ventilator",
+      "unicode": "e609",
+      "unicode_decimal": 58889
+    },
+    {
+      "icon_id": "40266448",
+      "name": "main-tower",
+      "font_class": "main-tower",
+      "unicode": "e60a",
+      "unicode_decimal": 58890
+    },
+    {
+      "icon_id": "40266447",
+      "name": "drainage",
+      "font_class": "drainage",
+      "unicode": "e60b",
+      "unicode_decimal": 58891
+    },
+    {
+      "icon_id": "40261664",
+      "name": "stop",
+      "font_class": "stop",
+      "unicode": "e600",
+      "unicode_decimal": 58880
+    },
+    {
+      "icon_id": "40261663",
+      "name": "motor-fault",
+      "font_class": "motor-fault",
+      "unicode": "e601",
+      "unicode_decimal": 58881
+    },
+    {
+      "icon_id": "40261661",
+      "name": "communication-failure",
+      "font_class": "communication-failure",
+      "unicode": "e602",
+      "unicode_decimal": 58882
+    },
+    {
+      "icon_id": "40261662",
+      "name": "motor-time-out",
+      "font_class": "motor-time-out",
+      "unicode": "e603",
+      "unicode_decimal": 58883
+    },
+    {
+      "icon_id": "40261660",
+      "name": "current",
+      "font_class": "current",
+      "unicode": "e604",
+      "unicode_decimal": 58884
+    },
+    {
+      "icon_id": "40261659",
+      "name": "speed",
+      "font_class": "speed",
+      "unicode": "e605",
+      "unicode_decimal": 58885
+    }
+  ]
+}

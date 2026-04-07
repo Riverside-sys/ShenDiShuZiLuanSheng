@@ -1,0 +1,15 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="48" height="48" fill="#032041" fill-opacity="0.8"/>
+<rect x="1" y="1" width="46" height="46" stroke="#A6DFFF" stroke-opacity="0.2" stroke-width="2"/>
+<rect width="2" height="2" fill="#D9D9D9"/>
+<rect x="46" width="2" height="2" fill="#D9D9D9"/>
+<rect x="46" y="46" width="2" height="2" fill="#D9D9D9"/>
+<rect y="46" width="2" height="2" fill="#D9D9D9"/>
+<path d="M25.0195 38L37.4812 31.7691V16.1919L36.2351 15.8804L25.0195 10.1168C24.5522 9.96105 23.9291 9.96105 23.4618 10.1168L12.2462 15.8804L11 16.1919V31.7691L23.4618 38M24.2406 13.2323L32.4965 17.4381L24.2406 21.6439L15.9847 17.5939L24.2406 13.2323ZM34.3658 29.8998L26.5772 33.9499V24.4478L34.3658 20.3978V29.8998Z" fill="url(#paint0_linear_1434_20391)"/>
+<defs>
+<linearGradient id="paint0_linear_1434_20391" x1="24.2406" y1="13.6532" x2="24.2406" y2="33.625" gradientUnits="userSpaceOnUse">
+<stop stop-color="#EFF7FF"/>
+<stop offset="1" stop-color="#93DEFF"/>
+</linearGradient>
+</defs>
+</svg>

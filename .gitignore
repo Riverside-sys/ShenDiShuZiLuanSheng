@@ -1,0 +1,4 @@
+.vscode/
+deprecated/
+node_modules/
+public/
