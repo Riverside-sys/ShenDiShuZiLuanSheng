@@ -50,6 +50,7 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import MetadataPopup from './MetadataPopup.vue';
 import ImagePreviewPopup from './ImagePreviewPopup.vue';
+import { aquiferPreviewImageUrl, aquiferSlicePreviewGifUrl } from '../../data';
 
 const router = useRouter();
 const emit = defineEmits(['flyTo']);
@@ -84,11 +85,11 @@ const handleItemClick = (item: any) => {
   } else if (item.value === 'model_geometry_info') {
     metadataPopupRef.value?.open('geometry');
   } else if (item.value === 'geological_body_layering') {
-    router.push('/underground/aquifer');
+    router.push('/hanshuiceng');
   } else if (item.value === 'aquifer_preview') {
-    imagePreviewPopupRef.value?.open('/images/aquifer/demo/vp20_preview.png', '含水层预览');
+    imagePreviewPopupRef.value?.open(aquiferPreviewImageUrl, '含水层预览');
   } else if (item.value === '3d_slice_preview') {
-    imagePreviewPopupRef.value?.open('/images/aquifer/demo/速度模型动图.gif', '速度模型-三维切片预览');
+    imagePreviewPopupRef.value?.open(aquiferSlicePreviewGifUrl, '速度模型-三维切片预览');
   }
 
   activeMenu.value = null; // 点击后自动关闭菜单

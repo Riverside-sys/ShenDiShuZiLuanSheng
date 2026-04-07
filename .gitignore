@@ -1,4 +1,9 @@
 .vscode/
 deprecated/
 node_modules/
-public/
+dist/
+.DS_Store
+src/Views/panyidong/data/*
+!src/Views/panyidong/data/index.ts
+src/Views/hanshuiceng/data/*
+!src/Views/hanshuiceng/data/index.ts

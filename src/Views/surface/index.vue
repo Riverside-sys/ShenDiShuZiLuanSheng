@@ -62,6 +62,7 @@ import { onMounted, ref, onBeforeUnmount, reactive } from "vue";
 import { useRouter } from "vue-router";
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
+import { surfaceAquiferKmlUrl, surfaceMinesGeoJsonUrl } from "./data";
 
 // 保存 Viewer 实例
 let viewer = null;
@@ -139,7 +140,7 @@ async function flyToScene(scene) {
   // 特殊处理废弃矿井场景：加载 GeoJSON
   if (scene.id === "mines") {
     try {
-      const geoJsonPath = "/测区位置/矿区/潘一东矿区.geojson";
+      const geoJsonPath = surfaceMinesGeoJsonUrl;
       console.log("Loading GeoJSON from:", geoJsonPath);
 
       // 加载 GeoJSON 数据
@@ -177,7 +178,7 @@ async function flyToScene(scene) {
   // 特殊处理含水层场景：加载 KML
   if (scene.id === "aquifer") {
     try {
-      const kmlPath = "/测区位置/含水层/重点区测线位置图.kml";
+      const kmlPath = surfaceAquiferKmlUrl;
       console.log("Loading KML from:", kmlPath);
 
       const kmlDataSource = await Cesium.KmlDataSource.load(kmlPath, {

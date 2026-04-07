@@ -1,13 +1,14 @@
 <template>
   <LayoutPanel title="含水层形成原理演示">
     <div class="video-images">
-      <VideoPopup src="/video/含水层形成原理.mp4" />
+      <VideoPopup :src="aquiferFormationVideoUrl" />
     </div>
   </LayoutPanel>
 </template>
 <script setup lang="ts">
 import LayoutPanel from './LayoutPanel.vue'
 import VideoPopup from './VideoPopup.vue'
+import { aquiferFormationVideoUrl } from '../../data'
 </script>
 
 <style lang="scss" scoped>

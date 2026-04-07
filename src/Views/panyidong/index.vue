@@ -58,6 +58,7 @@ import WidgetPanel03 from "./components/Charts/WidgetPanel03.vue"
 import WidgetPanel04 from "./components/Charts/WidgetPanel04.vue"
 import WidgetPanel05 from "./components/Charts/WidgetPanel05.vue"
 import WidgetPanel06 from "./components/Charts/WidgetPanel06.vue"
+import { panyidongModelUrl } from "./data"
 
 
 const cesiumContainer = ref(null);
@@ -73,7 +74,7 @@ const showSubscene = computed(() => {
 });
 
 // 场景初始化
-const modelPath = "/models/panyidong/潘一东巷道模型.glb";
+const modelPath = panyidongModelUrl;
 const init = async () => {
   if (cesiumContainer.value) {
     viewer = await initCesiumScene(cesiumContainer.value, modelPath);

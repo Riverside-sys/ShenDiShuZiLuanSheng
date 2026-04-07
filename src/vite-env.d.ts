@@ -12,3 +12,33 @@ declare module "*.json" {
     const value: any;
     export default value;
 }
+
+declare module "*.png" {
+    const value: string;
+    export default value;
+}
+
+declare module "*.gif" {
+    const value: string;
+    export default value;
+}
+
+declare module "*.mp4" {
+    const value: string;
+    export default value;
+}
+
+declare module "*.glb" {
+    const value: string;
+    export default value;
+}
+
+declare module "*.ply" {
+    const value: string;
+    export default value;
+}
+
+declare module "*?url" {
+    const value: string;
+    export default value;
+}

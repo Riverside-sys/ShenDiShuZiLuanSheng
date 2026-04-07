@@ -59,13 +59,14 @@ import WidgetPanel04 from "./components/Charts/WidgetPanel04.vue"
 import WidgetPanel05 from "./components/Charts/WidgetPanel05.vue"
 import WidgetPanel06 from "./components/Charts/WidgetPanel06.vue"
 import ImagePreviewPopup from "./components/Toolbar/ImagePreviewPopup.vue"
+import { aquiferInversionDemoGifUrl, aquiferModelUrl } from "./data"
 
 const uiLayer = ref<HTMLElement | null>(null);
 const viewerContainerRef = ref<HTMLElement | null>(null);
 const cesiumContainer = ref<HTMLElement | null>(null);
 const imagePreviewPopupRef = ref<InstanceType<typeof ImagePreviewPopup> | null>(null);
 let viewer: Viewer | null = null;
-const modelPath = "/models/aquifer/demo/aquifer_vp.glb";
+const modelPath = aquiferModelUrl;
 const showSubscene = ref(false);
 
 const initCesium = async () => {
@@ -194,7 +195,7 @@ const handleResetView = async () => {
 
 // 处理反演结果展示
 const handleInversionShow = () => {
-  imagePreviewPopupRef.value?.open('/images/aquifer/demo/vp动图.gif', '反演结果动态演示');
+  imagePreviewPopupRef.value?.open(aquiferInversionDemoGifUrl, '反演结果动态演示');
 };
 
 // 处理 UI 缩放 (1920x1080 基准)

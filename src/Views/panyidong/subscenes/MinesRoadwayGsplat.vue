@@ -48,6 +48,7 @@
 import { ref, onMounted, onUnmounted, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import * as GaussianSplats from "@mkkellogg/gaussian-splats-3d";
+import { panyidongGsplatUrl } from "../data";
 
 // 状态
 const containerRef = ref<HTMLElement>();
@@ -277,7 +278,7 @@ const loadModel = async () => {
 
         // 加载场景
         await viewer.addSplatScene(
-            "/scenes_mines/demo/gsplats/VID_20250307_160117_point_cloud.ply",
+            panyidongGsplatUrl,
             sceneConfig
         );
 

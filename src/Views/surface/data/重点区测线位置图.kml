@@ -1,0 +1,100 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" 
+	xmlns:atom="http://www.w3.org/2005/Atom" 
+	xmlns:gx="http://www.google.com/kml/ext/2.2" 
+	>
+<Document>
+	<name>重点区测线位置图</name>
+	<Placemark>
+		<name>涟水调整后测线</name>
+		<Style>
+			<LineStyle><color>ccff0000</color><width>3</width></LineStyle>
+		</Style>
+		<OvStyle>
+			<TrackStyle><type>11</type><width>3</width><LineType>0</LineType></TrackStyle>
+		</OvStyle>
+		<OvCoordType>CGCS2000</OvCoordType>
+			<LineString>
+				<coordinates>119.29083824,33.85815705,0 119.32740211,33.79248712,0 </coordinates>
+			</LineString>
+	</Placemark>
+	<Placemark>
+		<name>涟水调整后测线</name>
+		<Style>
+			<LineStyle><color>7fff0000</color><width>3</width></LineStyle>
+		</Style>
+		<OvStyle>
+			<TrackStyle><type>4</type><width>3</width><LineType>0</LineType></TrackStyle>
+		</OvStyle>
+		<OvCoordType>CGCS2000</OvCoordType>
+			<LineString>
+				<coordinates>119.27223444,33.80505815,0 119.37426567,33.84461364,0 </coordinates>
+			</LineString>
+	</Placemark>
+	<Placemark>
+		<name>车桥30线</name>
+		<Style>
+			<LineStyle><color>7fff00ff</color><width>3</width></LineStyle>
+		</Style>
+		<OvStyle>
+			<TrackStyle><type>4</type><width>3</width><LineType>0</LineType></TrackStyle>
+		</OvStyle>
+		<OvCoordType>CGCS2000</OvCoordType>
+			<LineString>
+				<coordinates>119.25193548,33.46986212,0 119.39901710,33.52673245,0 </coordinates>
+			</LineString>
+	</Placemark>
+	<Placemark>
+		<name>车桥20</name>
+		<Style>
+			<LineStyle><color>7fff0000</color><width>3</width></LineStyle>
+		</Style>
+		<OvStyle>
+			<TrackStyle><type>4</type><width>3</width><LineType>0</LineType></TrackStyle>
+		</OvStyle>
+		<OvCoordType>CGCS2000</OvCoordType>
+			<LineString>
+				<coordinates>119.35641289,33.44914100,0 119.29764837,33.55600522,0 </coordinates>
+			</LineString>
+	</Placemark>
+	<Placemark>
+		<name>车桥10</name>
+		<Style>
+			<LineStyle><color>7fff0000</color><width>3</width></LineStyle>
+		</Style>
+		<OvStyle>
+			<TrackStyle><type>4</type><width>3</width><LineType>0</LineType></TrackStyle>
+		</OvStyle>
+		<OvCoordType>CGCS2000</OvCoordType>
+			<LineString>
+				<coordinates>119.27873075,33.45377347,0 119.41115946,33.50482393,0 </coordinates>
+			</LineString>
+	</Placemark>
+	<Placemark>
+		<name>杨集背斜北西向</name>
+		<Style>
+			<LineStyle><color>7fff0000</color><width>3</width></LineStyle>
+		</Style>
+		<OvStyle>
+			<TrackStyle><type>4</type><width>3</width><LineType>0</LineType></TrackStyle>
+		</OvStyle>
+		<OvCoordType>CGCS2000</OvCoordType>
+			<LineString>
+				<coordinates>119.59247947,33.58244815,0 119.62793827,33.51685340,0 </coordinates>
+			</LineString>
+	</Placemark>
+	<Placemark>
+		<name>杨集背斜北东向</name>
+		<Style>
+			<LineStyle><color>7fff0000</color><width>3</width></LineStyle>
+		</Style>
+		<OvStyle>
+			<TrackStyle><type>4</type><width>3</width><LineType>0</LineType></TrackStyle>
+		</OvStyle>
+		<OvCoordType>CGCS2000</OvCoordType>
+			<LineString>
+				<coordinates>119.57007766,33.52649544,0 119.70729679,33.57903374,0 </coordinates>
+			</LineString>
+	</Placemark>
+</Document>
+</kml>

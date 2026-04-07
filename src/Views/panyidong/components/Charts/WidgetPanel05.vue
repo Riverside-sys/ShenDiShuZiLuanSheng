@@ -1,12 +1,13 @@
 <template>
   <LayoutPanel title="视频监控">
     <div class="video-images">
-      <video src="/video/573240324-1-16.mp4" autoplay muted loop></video>
+      <video :src="panyidongMonitoringVideoUrl" autoplay muted loop></video>
     </div>
   </LayoutPanel>
 </template>
 <script setup lang="ts">
 import LayoutPanel from './LayoutPanel.vue'
+import { panyidongMonitoringVideoUrl } from '../../data'
 </script>
 
 <style lang="scss" scoped>
