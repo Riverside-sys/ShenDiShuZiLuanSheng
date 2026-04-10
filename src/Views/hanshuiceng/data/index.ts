@@ -8,8 +8,10 @@ import aquiferPreviewImageAssetUrl from "./vp20_preview.png?url";
 import aquiferSlicePreviewGifAssetUrl from "./速度模型动图.gif?url";
 import aquiferInversionDemoGifAssetUrl from "./vp动图.gif?url";
 import aquiferFormationVideoAssetUrl from "./含水层形成原理.mp4?url";
+import vp20ModelAssetUrl from "./models/vp20.glb?url";
 
 export const aquiferModelUrl = aquiferModelAssetUrl;
+export const vp20ModelUrl = vp20ModelAssetUrl;
 export const aquifer2DAnalysisImageUrl = aquifer2DAnalysisImageAssetUrl;
 export const aquifer3DAnalysisImageUrl = aquifer3DAnalysisImageAssetUrl;
 export const aquiferVelocityModelImageUrl = aquiferVelocityModelImageAssetUrl;

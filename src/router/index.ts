@@ -9,6 +9,7 @@ import type { RouteRecordRaw } from "vue-router";
 import { SurfaceItem } from "./modules/surface";
 import { PanyidongItem } from "./modules/panyidong";
 import { HanshuicengItem } from "./modules/hanshuiceng";
+import { SaltCaveItem } from "./modules/saltCave";
 
 const routes: Array<RouteRecordRaw> = [
     // 根路由重定向到 /home
@@ -32,6 +33,9 @@ const routes: Array<RouteRecordRaw> = [
 
     // 含水层 路由模块
     ...HanshuicengItem,
+
+    // 盐穴 路由模块
+    ...SaltCaveItem,
 
     {
         path: "/:pathMatch(.*)",

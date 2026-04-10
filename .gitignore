@@ -7,3 +7,5 @@ src/Views/panyidong/data/*
 !src/Views/panyidong/data/index.ts
 src/Views/hanshuiceng/data/*
 !src/Views/hanshuiceng/data/index.ts
+src/Views/saltCave/data/*
+!src/Views/saltCave/data/index.ts

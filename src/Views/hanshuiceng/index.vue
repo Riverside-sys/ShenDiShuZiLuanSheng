@@ -1,43 +1,194 @@
 <template>
-  <div class="viewer-container" ref="viewerContainerRef" v-show="!showSubscene">
+  <div class="viewer-container" v-show="!showSubscene">
     <!-- 三维场景容器 -->
     <div class="center">
-      <div class="cesium-view">
+      <div class="cesium-view" v-show="!isModelMode">
         <div ref="cesiumContainer" class="cesium-container"></div>
       </div>
+      <div class="three-view" v-show="isModelMode">
+        <div ref="threeContainer" class="three-container"></div>
+        <!-- 模型点击浮动标签 -->
+        <div
+          v-if="modelTagVisible"
+          class="vp-floating-tag"
+          :style="{ left: modelTagPos.x + 'px', top: modelTagPos.y + 'px' }"
+        >
+          <button class="vp-tag-btn" @click="onModelTagClick">{{ modelTagLabel }}</button>
+        </div>
+      </div>
     </div>
 
-    <!-- UI 层容器，进行整体缩放 -->
-    <div class="ui-layer" ref="uiLayer">
-      <!-- 左侧面板 -->
-      <div class="left-panel">
-        <WidgetPanel01 />
-        <WidgetPanel02 />
-        <WidgetPanel03 />
-      </div>
-
-      <!-- 功能按钮 -->
-      <div class="toolbar-container">
-        <Toolbar />
-      </div>
-
-      <!-- 右侧面板 -->
-      <div class="right-panel">
-        <WidgetPanel04 />
-        <WidgetPanel05 />
-        <WidgetPanel06 />
-      </div>
-
-      <!-- 底部工具栏 -->
-      <div class="bottom-panel">
-        <Footer @resetView="handleResetView" @inversionShow="handleInversionShow" />
-      </div>
-
-      <!-- 弹窗组件 -->
-      <Teleport to="body">
-        <ImagePreviewPopup ref="imagePreviewPopupRef" />
-      </Teleport>
+    <!-- 地层操作按钮（顶部居中，横向排列） -->
+    <div class="layer-controls">
+      <button
+        class="layer-btn"
+        @click="expandLayers"
+        :disabled="isExpanded || isLoading || isModelMode"
+      >
+        展开地层
+      </button>
+      <button
+        class="layer-btn"
+        @click="closeLayers"
+        :disabled="!isExpanded || isLoading || isModelMode"
+      >
+        关闭地层
+      </button>
+      <button
+        class="layer-btn"
+        :class="{ active: isPerspectiveMode }"
+        @click="togglePerspectiveMode"
+        :disabled="isModelMode"
+      >
+        {{ isPerspectiveMode ? "取消透视" : "透视模式" }}
+      </button>
+      <button class="layer-btn" @click="toggleLayerSelector" :disabled="isModelMode">
+        选择地层
+      </button>
+      <button class="layer-btn" @click="handleResetView" :disabled="isModelMode">
+        重置视图
+      </button>
     </div>
+
+    <!-- 地层选择器面板 -->
+    <div v-if="showLayerSelector" class="layer-selector-panel">
+      <h3>选择要显示的地层</h3>
+      <button class="close-btn" @click="showLayerSelector = false">×</button>
+      <div class="layer-list">
+        <button
+          v-for="(name, index) in geoLayerNames"
+          :key="index"
+          @click="showOnlyLayer(index)"
+          :disabled="isLoading"
+          :class="{ active: selectedSingleLayer === index }"
+          class="layer-select-btn"
+        >
+          {{ name }} ({{ index }})
+        </button>
+      </div>
+    </div>
+
+    <!-- 地层信息面板 -->
+    <div v-if="showLayerInfo" class="layer-info-panel">
+      <h3>地层信息</h3>
+      <button class="close-btn" @click="showLayerInfo = false">×</button>
+      <table>
+        <tbody>
+          <tr>
+            <th>属性</th>
+            <th>数值</th>
+          </tr>
+          <tr v-for="(value, key) in selectedLayerInfo" :key="key">
+            <td>{{ key }}</td>
+            <td>{{ value }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 左侧图表面板 -->
+    <div class="left-charts">
+      <WaterLevelChart />
+      <PorosityRadarChart />
+      <StratumBarChart />
+    </div>
+
+    <!-- 右侧控制面板 -->
+    <div class="right-panel">
+      <!-- 含水层分析 -->
+      <div class="panel-group">
+        <div class="panel-group-title">含水层分析</div>
+        <div class="panel-group-body">
+          <button
+            v-for="item in analysisItems"
+            :key="item.label"
+            class="analysis-btn"
+            :style="{ '--btn-rgb': item.color } as any"
+            @click="openAnalysis(item)"
+          >
+            {{ item.label }}
+          </button>
+        </div>
+      </div>
+
+      <!-- 含水层模型转换效果 -->
+      <div class="panel-group">
+        <div class="panel-group-title">含水层模型转换效果</div>
+        <div class="panel-group-body">
+          <button
+            class="analysis-btn"
+            :class="{ active: activeModelBtn === 'vp' }"
+            :style="{ '--btn-rgb': '0, 180, 255' } as any"
+            @click="loadVpModel"
+          >
+            VP模型转换效果
+          </button>
+          <button
+            class="analysis-btn"
+            :class="{ active: activeModelBtn === 'aquifer' }"
+            :style="{ '--btn-rgb': '255, 160, 60' } as any"
+            @click="loadAquiferModel"
+          >
+            含水层模型转换效果
+          </button>
+          <button
+            v-if="isModelMode"
+            class="analysis-btn"
+            :style="{ '--btn-rgb': '120, 220, 120' } as any"
+            @click="exitModelMode"
+          >
+            返回地层视图
+          </button>
+        </div>
+      </div>
+
+      <!-- 调试工具 -->
+      <button
+        class="analysis-btn camera-debug-btn"
+        :style="{ '--btn-rgb': '200, 200, 200' } as any"
+        :disabled="!isModelMode"
+        @click="logCameraPose"
+      >
+        输出相机姿态
+      </button>
+    </div>
+
+    <!-- 底部工具栏 -->
+    <div class="bottom-bar">
+      <Footer @velocityModelShow="handleVelocityModelShow" @inversionShow="handleInversionShow" />
+    </div>
+
+    <!-- 图片弹窗 -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="analysisModalVisible && analysisModalType === 'image'" class="analysis-modal" @click.self="closeAnalysisModal">
+          <div class="analysis-modal-content">
+            <div class="analysis-modal-header">
+              <span class="analysis-modal-title">{{ analysisModalTitle }}</span>
+              <button class="analysis-modal-close" @click="closeAnalysisModal">×</button>
+            </div>
+            <div class="analysis-modal-body">
+              <img :src="analysisModalSrc" :alt="analysisModalTitle" class="analysis-modal-img" />
+            </div>
+          </div>
+        </div>
+      </Transition>
+      <Transition name="fade">
+        <div v-if="analysisModalVisible && analysisModalType === 'video'" class="analysis-modal" @click.self="closeAnalysisModal">
+          <div class="analysis-modal-content analysis-modal-content--video">
+            <div class="analysis-modal-header">
+              <span class="analysis-modal-title">{{ analysisModalTitle }}</span>
+              <button class="analysis-modal-close" @click="closeAnalysisModal">×</button>
+            </div>
+            <div class="analysis-modal-body">
+              <video :src="analysisModalSrc" controls autoplay class="analysis-modal-video"></video>
+            </div>
+          </div>
+        </div>
+      </Transition>
+
+      <ImagePreviewPopup ref="imagePreviewPopupRef" />
+    </Teleport>
   </div>
   <!-- 子场景容器 -->
   <div class="subscene-container" v-if="showSubscene">
@@ -46,28 +197,316 @@
 </template>
 
 <script setup lang='ts'>
-import { ref, onMounted, onBeforeUnmount } from "vue"
-import { Viewer, Cartesian3, Color, SceneMode, ScreenSpaceEventHandler, ScreenSpaceEventType, Matrix4 } from "cesium"
+import { ref, nextTick, onMounted, onBeforeUnmount } from "vue"
+import {
+  Viewer,
+  Cartesian3,
+  Color,
+  SceneMode,
+  ScreenSpaceEventType,
+  Matrix4,
+  HeadingPitchRoll,
+  Transforms,
+  Math as CesiumMath,
+  Entity,
+} from "cesium"
+import * as THREE from "three"
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js"
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 
-// 引入组件
 import Footer from "./components/Footer/index.vue"
-import Toolbar from "./components/Toolbar/index.vue"
-import WidgetPanel01 from "./components/Charts/WidgetPanel01.vue"
-import WidgetPanel02 from "./components/Charts/WidgetPanel02.vue"
-import WidgetPanel03 from "./components/Charts/WidgetPanel03.vue"
-import WidgetPanel04 from "./components/Charts/WidgetPanel04.vue"
-import WidgetPanel05 from "./components/Charts/WidgetPanel05.vue"
-import WidgetPanel06 from "./components/Charts/WidgetPanel06.vue"
 import ImagePreviewPopup from "./components/Toolbar/ImagePreviewPopup.vue"
-import { aquiferInversionDemoGifUrl, aquiferModelUrl } from "./data"
+import WaterLevelChart from "./components/Charts/WaterLevelChart.vue"
+import PorosityRadarChart from "./components/Charts/PorosityRadarChart.vue"
+import StratumBarChart from "./components/Charts/StratumBarChart.vue"
+import {
+  aquiferInversionDemoGifUrl,
+  aquiferSlicePreviewGifUrl,
+  aquifer2DAnalysisImageUrl,
+  aquifer3DAnalysisImageUrl,
+  aquiferVelocityModelImageUrl,
+  aquiferWellConstrainedInversionImageUrl,
+  aquiferFullWaveformInversionImageUrl,
+  aquiferFormationVideoUrl,
+  vp20ModelUrl,
+  aquiferModelUrl,
+} from "./data"
+import { layerModelUrls, layerNames as geoLayerNames } from "./data/GeologicalStratification"
 
-const uiLayer = ref<HTMLElement | null>(null);
-const viewerContainerRef = ref<HTMLElement | null>(null);
+interface AnalysisItem {
+  label: string;
+  src: string;
+  type: 'image' | 'video';
+  color: string;
+}
+
+const analysisItems: AnalysisItem[] = [
+  { label: "含水层2D分析", src: aquifer2DAnalysisImageUrl, type: "image", color: "23, 199, 254" },
+  { label: "含水层3D分析", src: aquifer3DAnalysisImageUrl, type: "image", color: "0, 230, 180" },
+  { label: "速度模型", src: aquiferVelocityModelImageUrl, type: "image", color: "255, 170, 50" },
+  { label: "测井约束反演", src: aquiferWellConstrainedInversionImageUrl, type: "image", color: "160, 120, 255" },
+  { label: "全波形反演", src: aquiferFullWaveformInversionImageUrl, type: "image", color: "255, 100, 130" },
+  { label: "形成原理演示", src: aquiferFormationVideoUrl, type: "video", color: "80, 200, 120" },
+];
+
+const analysisModalVisible = ref(false);
+const analysisModalTitle = ref("");
+const analysisModalSrc = ref("");
+const analysisModalType = ref<'image' | 'video'>("image");
+
+function openAnalysis(item: AnalysisItem) {
+  analysisModalTitle.value = item.label;
+  analysisModalSrc.value = item.src;
+  analysisModalType.value = item.type;
+  analysisModalVisible.value = true;
+}
+
+function closeAnalysisModal() {
+  analysisModalVisible.value = false;
+}
+
 const cesiumContainer = ref<HTMLElement | null>(null);
+const threeContainer = ref<HTMLElement | null>(null);
 const imagePreviewPopupRef = ref<InstanceType<typeof ImagePreviewPopup> | null>(null);
 let viewer: Viewer | null = null;
-const modelPath = aquiferModelUrl;
 const showSubscene = ref(false);
+
+const isLoading = ref(false);
+const isExpanded = ref(false);
+const isPerspectiveMode = ref(false);
+const perspectiveLayerId = ref(0);
+const showLayerSelector = ref(false);
+const selectedSingleLayer = ref<number | null>(null);
+const showLayerInfo = ref(false);
+const selectedLayerInfo = ref<Record<string, string | number>>({});
+const selectedLayerId = ref<number | null>(null);
+
+const isModelMode = ref(false);
+const activeModelBtn = ref<'vp' | 'aquifer' | null>(null);
+const modelTagVisible = ref(false);
+const modelTagPos = ref({ x: 0, y: 0 });
+const modelTagLabel = ref('');
+
+let threeScene: THREE.Scene | null = null;
+const threeRaycaster = new THREE.Raycaster();
+const threeMouse = new THREE.Vector2();
+let threeCamera: THREE.PerspectiveCamera | null = null;
+let threeRenderer: THREE.WebGLRenderer | null = null;
+let threeControls: OrbitControls | null = null;
+let threeAnimationId: number | null = null;
+let currentThreeModel: THREE.Object3D | null = null;
+
+let allLayerEntities: Entity[] = [];
+let currentSingleEntity: Entity | null = null;
+
+const BASE_LNG = 117.22089726144343;
+const BASE_LAT = 31.833569328835598;
+const BASE_HEIGHT = 60;
+const LAYER_GAP_DEFAULT = 10;
+const LAYER_GAP_EXPANDED = 20;
+
+function generateLayerInfo(layerId: number) {
+  const layerTypes = ["砂岩", "页岩", "石灰岩", "煤层", "粉砂岩", "泥岩"];
+  const randomType = layerTypes[Math.floor(Math.random() * layerTypes.length)];
+  let layerName = "未知地层";
+  if (layerId >= 0 && layerId < geoLayerNames.length) {
+    layerName = geoLayerNames[layerId];
+  }
+  return {
+    地层ID: layerId,
+    地层名称: layerName,
+    地层类型: randomType,
+    "厚度(m)": (Math.random() * 50 + 10).toFixed(2),
+    "深度(m)": (Math.random() * 1000 + 100).toFixed(2),
+    "孔隙度(%)": (Math.random() * 15 + 5).toFixed(2),
+    "渗透率(mD)": (Math.random() * 200 + 10).toFixed(2),
+    "含水率(%)": (Math.random() * 20 + 5).toFixed(2),
+    "密度(g/cm³)": (Math.random() * 1.5 + 2).toFixed(2),
+  };
+}
+
+async function loadLayerModel(index: number, baseHeight = BASE_HEIGHT): Promise<Entity> {
+  if (!viewer) throw new Error("Viewer not initialized");
+
+  const url = layerModelUrls[index];
+  const layerHeight = baseHeight + index * LAYER_GAP_DEFAULT;
+
+  const position = Cartesian3.fromDegrees(BASE_LNG, BASE_LAT, layerHeight);
+  const heading = CesiumMath.toRadians(0);
+  const pitch = CesiumMath.toRadians(-90);
+  const roll = CesiumMath.toRadians(90);
+  const hpr = new HeadingPitchRoll(heading, pitch, roll);
+  const orientation = Transforms.headingPitchRollQuaternion(position, hpr);
+
+  const entity = viewer.entities.add({
+    position,
+    orientation,
+    model: {
+      uri: url,
+      minimumPixelSize: 128,
+      maximumScale: 800,
+    },
+  });
+
+  return entity;
+}
+
+async function loadAllLayers() {
+  if (!viewer || isLoading.value) return;
+  isLoading.value = true;
+
+  try {
+    clearAllEntities();
+
+    for (let i = 0; i < geoLayerNames.length; i++) {
+      try {
+        const entity = await loadLayerModel(i);
+        allLayerEntities.push(entity);
+      } catch (e) {
+        console.error(`加载地层 ${i} 失败:`, e);
+      }
+    }
+
+    if (allLayerEntities.length > 0) {
+      viewer.trackedEntity = allLayerEntities[0];
+      await viewer.zoomTo(allLayerEntities[0]);
+    }
+  } catch (error) {
+    console.error("加载所有地层失败:", error);
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+function clearAllEntities() {
+  if (!viewer) return;
+  allLayerEntities.forEach((entity) => {
+    if (entity && viewer!.entities.contains(entity)) {
+      viewer!.entities.remove(entity);
+    }
+  });
+  allLayerEntities = [];
+
+  if (currentSingleEntity && viewer.entities.contains(currentSingleEntity)) {
+    viewer.entities.remove(currentSingleEntity);
+    currentSingleEntity = null;
+  }
+}
+
+function expandLayers() {
+  if (!viewer || isExpanded.value) return;
+  isExpanded.value = true;
+
+  allLayerEntities.forEach((entity, index) => {
+    if (entity && entity.position) {
+      const expandedHeight = BASE_HEIGHT + index * LAYER_GAP_EXPANDED;
+      entity.position = Cartesian3.fromDegrees(BASE_LNG, BASE_LAT, expandedHeight) as any;
+    }
+  });
+}
+
+function closeLayers() {
+  if (!viewer || !isExpanded.value) return;
+  isExpanded.value = false;
+
+  allLayerEntities.forEach((entity, index) => {
+    if (entity && entity.position) {
+      const closedHeight = BASE_HEIGHT + index * LAYER_GAP_DEFAULT;
+      entity.position = Cartesian3.fromDegrees(BASE_LNG, BASE_LAT, closedHeight) as any;
+    }
+  });
+}
+
+function togglePerspectiveMode() {
+  if (!viewer) return;
+
+  if (selectedSingleLayer.value !== null) {
+    if (currentSingleEntity && viewer.entities.contains(currentSingleEntity)) {
+      viewer.entities.remove(currentSingleEntity);
+      currentSingleEntity = null;
+    }
+    allLayerEntities.forEach((entity) => {
+      if (entity) entity.show = true;
+    });
+    selectedSingleLayer.value = null;
+  }
+
+  isPerspectiveMode.value = !isPerspectiveMode.value;
+
+  if (isPerspectiveMode.value) {
+    applyPerspective(0);
+  } else {
+    clearPerspective();
+  }
+}
+
+function applyPerspective(targetLayerId: number) {
+  perspectiveLayerId.value = targetLayerId;
+
+  allLayerEntities.forEach((entity, index) => {
+    if (entity && entity.model) {
+      if (index === targetLayerId) {
+        entity.model.color = Color.WHITE as any;
+      } else {
+        entity.model.color = Color.WHITE.withAlpha(0.3) as any;
+      }
+    }
+  });
+}
+
+function clearPerspective() {
+  allLayerEntities.forEach((entity) => {
+    if (entity && entity.model) {
+      entity.model.color = Color.WHITE as any;
+    }
+  });
+}
+
+function toggleLayerSelector() {
+  showLayerSelector.value = !showLayerSelector.value;
+}
+
+async function showOnlyLayer(index: number) {
+  if (!viewer || isLoading.value) return;
+  isLoading.value = true;
+
+  try {
+    selectedSingleLayer.value = index;
+
+    if (isPerspectiveMode.value) {
+      isPerspectiveMode.value = false;
+      clearPerspective();
+    }
+
+    allLayerEntities.forEach((entity) => {
+      if (entity) entity.show = false;
+    });
+
+    if (currentSingleEntity && viewer.entities.contains(currentSingleEntity)) {
+      viewer.entities.remove(currentSingleEntity);
+      currentSingleEntity = null;
+    }
+
+    currentSingleEntity = await loadLayerModel(index);
+    viewer.trackedEntity = currentSingleEntity;
+    await viewer.zoomTo(currentSingleEntity);
+  } catch (e) {
+    console.error(`加载地层 ${index} 失败:`, e);
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+function handleLayerClick(layerId: number) {
+  if (isPerspectiveMode.value) {
+    applyPerspective(layerId);
+  } else {
+    selectedLayerId.value = layerId;
+    selectedLayerInfo.value = generateLayerInfo(layerId);
+    showLayerInfo.value = true;
+  }
+}
 
 const initCesium = async () => {
   if (!cesiumContainer.value) return;
@@ -95,47 +534,38 @@ const initCesium = async () => {
     }
   });
 
-  // 隐藏版权信息
   (viewer.cesiumWidget.creditContainer as HTMLElement).style.display = "none";
 
-  // 基础设置
   viewer.scene.globe.show = false;
   viewer.scene.backgroundColor = Color.TRANSPARENT;
+  viewer.scene.globe.depthTestAgainstTerrain = true;
+  viewer.scene.globe.enableLighting = false;
+  viewer.scene.fog.enabled = false;
+  if (viewer.scene.skyAtmosphere) {
+    viewer.scene.skyAtmosphere.show = false;
+  }
 
-  // 移除所有影像图层
   viewer.imageryLayers.removeAll();
 
   try {
-    // 初始渲染
-    setTimeout(() => {
-      viewer?.scene.requestRender();
-    }, 500);
+    await loadAllLayers();
 
-    // 👇 调试用：鼠标左键点击输出当前相机位置与姿态
-    const cameraHandler = new ScreenSpaceEventHandler(viewer.scene.canvas);
-    cameraHandler.setInputAction(() => {
+    viewer.screenSpaceEventHandler.setInputAction((movement: any) => {
       if (!viewer) return;
-      const cam = viewer.camera;
-      
-      // 使用 positionWC (World Coordinates) 获取绝对的全局世界坐标
-      // 避免因为 transform 被挂载到某个实体上时，普通的 position 变成局部坐标
-      const { x, y, z } = cam.positionWC;
-      
-      const toDeg = (r: number) => (r * 180) / Math.PI;
-      console.log("📷 相机信息 ——");
-      console.log("  position (Cartesian3):", { x, y, z });
-      console.log("  heading (rad / deg):", cam.heading, toDeg(cam.heading));
-      console.log("  pitch   (rad / deg):", cam.pitch, toDeg(cam.pitch));
-      console.log("  roll    (rad / deg):", cam.roll, toDeg(cam.roll));
-      console.log("  👉 setView 参考:");
-      console.log(`  destination: Cartesian3.fromElements(${x.toFixed(4)}, ${y.toFixed(4)}, ${z.toFixed(4)}),`);
-      console.log(`  orientation: { heading: ${cam.heading.toFixed(6)}, pitch: ${cam.pitch.toFixed(6)}, roll: ${cam.roll.toFixed(6)} }`);
+      const pickedFeature = viewer.scene.pick(movement.position);
+      if (pickedFeature && pickedFeature.id) {
+        let layerIndex = allLayerEntities.findIndex(
+          (entity) => entity === pickedFeature.id
+        );
+        if (layerIndex === -1 && currentSingleEntity === pickedFeature.id) {
+          layerIndex = selectedSingleLayer.value ?? -1;
+        }
+        if (layerIndex !== -1) {
+          handleLayerClick(layerIndex);
+        }
+      }
     }, ScreenSpaceEventType.LEFT_CLICK);
 
-    // 首次加载模型和视图
-    loadModelAndResetView();
-
-    // 监听相机变化以触发渲染
     viewer.camera.changed.addEventListener(() => {
       viewer?.scene.requestRender();
     });
@@ -145,82 +575,242 @@ const initCesium = async () => {
   }
 }
 
-// 提取：加载模型并重置相机视图到设定坐标
-const loadModelAndResetView = () => {
-  if (!viewer) return;
-  
-  // 加载模型
-  viewer.entities.add({
-    name: "vp20 Model",
-    position: Cartesian3.fromElements(0, 0, 0),
-    model: {
-      uri: modelPath,
-      scale: 1.0,
-      minimumPixelSize: 64,
-      maximumScale: 20000,
-      color: Color.WHITE,
-    },
-  });
-
-  // 直接设定相机到指定视角
-  viewer.camera.setView({
-    destination: Cartesian3.fromElements(-1194.2068, 866.4602, 2441.4255),
-    orientation: {
-      heading: 2.876939,
-      pitch: -1.465306,
-      roll: 1.216155
-    }
-  });
-};
-
-// 处理重置视图
 const handleResetView = async () => {
   if (!viewer) return;
 
-  // 1. 查找并移除现有的模型实体
-  const modelEntity = viewer.entities.values.find(e => e.name === "vp20 Model");
-  if (modelEntity) {
-    viewer.entities.remove(modelEntity);
-  }
+  clearAllEntities();
 
-  // 重置相机的参考坐标系到世界坐标（防止由于旋转等操作残留的 transform 导致坐标偏移）
+  isExpanded.value = false;
+  isPerspectiveMode.value = false;
+  perspectiveLayerId.value = 0;
+  selectedSingleLayer.value = null;
+  selectedLayerId.value = null;
+  showLayerInfo.value = false;
+  showLayerSelector.value = false;
+
   viewer.camera.lookAtTransform(Matrix4.IDENTITY);
 
-  // 2. 重新调用加载
-  loadModelAndResetView();
-  
-  // 触发渲染
+  await loadAllLayers();
+
   viewer.scene.requestRender();
 };
 
-// 处理反演结果展示
+const handleVelocityModelShow = () => {
+  imagePreviewPopupRef.value?.open(aquiferSlicePreviewGifUrl, '三维盖帽状水层速度模型');
+};
+
 const handleInversionShow = () => {
   imagePreviewPopupRef.value?.open(aquiferInversionDemoGifUrl, '反演结果动态演示');
 };
 
-// 处理 UI 缩放 (1920x1080 基准)
-const handleResize = () => {
-  if (uiLayer.value && viewerContainerRef.value) {
-    const width = viewerContainerRef.value.clientWidth;
-    const height = viewerContainerRef.value.clientHeight;
-    uiLayer.value.style.transform = `scale(${width / 1920}, ${height / 1080})`;
+function initThreeScene() {
+  if (!threeContainer.value || threeRenderer) return;
+
+  threeScene = new THREE.Scene();
+  threeScene.background = new THREE.Color(0x0a1628);
+
+  const width = threeContainer.value.clientWidth;
+  const height = threeContainer.value.clientHeight;
+  threeCamera = new THREE.PerspectiveCamera(50, width / height, 0.1, 10000);
+  threeCamera.position.set(0, 5, 10);
+
+  threeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  threeRenderer.setSize(width, height);
+  threeRenderer.setPixelRatio(window.devicePixelRatio);
+  threeRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+  threeRenderer.toneMappingExposure = 1.2;
+  threeContainer.value.appendChild(threeRenderer.domElement);
+
+  threeControls = new OrbitControls(threeCamera, threeRenderer.domElement);
+  threeControls.enableDamping = true;
+  threeControls.dampingFactor = 0.08;
+
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+  threeScene.add(ambientLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  dirLight.position.set(5, 10, 7);
+  threeScene.add(dirLight);
+  const dirLight2 = new THREE.DirectionalLight(0x8ec8ff, 0.4);
+  dirLight2.position.set(-5, 3, -5);
+  threeScene.add(dirLight2);
+
+  threeRenderer.domElement.addEventListener('click', onThreeCanvasClick);
+
+  animateThree();
+}
+
+function onThreeCanvasClick(event: MouseEvent) {
+  if (!threeRenderer || !threeCamera || !currentThreeModel || !activeModelBtn.value) return;
+
+  const rect = threeRenderer.domElement.getBoundingClientRect();
+  threeMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  threeMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+  threeRaycaster.setFromCamera(threeMouse, threeCamera);
+  const intersects = threeRaycaster.intersectObject(currentThreeModel, true);
+
+  if (intersects.length > 0) {
+    modelTagPos.value = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    modelTagLabel.value = activeModelBtn.value === 'vp' ? '查看vp20' : '查看vp含水层';
+    modelTagVisible.value = true;
+  } else {
+    modelTagVisible.value = false;
   }
+}
+
+function onModelTagClick() {
+  modelTagVisible.value = false;
+  if (activeModelBtn.value === 'vp') {
+    analysisModalTitle.value = 'VP20 三维分析';
+    analysisModalSrc.value = aquifer3DAnalysisImageUrl;
+  } else {
+    analysisModalTitle.value = 'VP含水层动态演示';
+    analysisModalSrc.value = aquiferInversionDemoGifUrl;
+  }
+  analysisModalType.value = 'image';
+  analysisModalVisible.value = true;
+}
+
+function animateThree() {
+  threeAnimationId = requestAnimationFrame(animateThree);
+  if (threeControls) threeControls.update();
+  if (threeRenderer && threeScene && threeCamera) {
+    threeRenderer.render(threeScene, threeCamera);
+  }
+}
+
+interface CameraPose {
+  position: { x: number; y: number; z: number };
+  target: { x: number; y: number; z: number };
+}
+
+function loadThreeGLB(url: string, cameraPose?: CameraPose) {
+  if (!threeScene || !threeCamera) return;
+
+  if (currentThreeModel) {
+    threeScene.remove(currentThreeModel);
+    currentThreeModel = null;
+  }
+
+  const dracoLoader = new DRACOLoader();
+  dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(dracoLoader);
+  loader.load(
+    url,
+    (gltf) => {
+      const model = gltf.scene;
+      const box = new THREE.Box3().setFromObject(model);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      model.position.sub(center);
+
+      threeScene!.add(model);
+      currentThreeModel = model;
+
+      if (cameraPose) {
+        threeCamera!.position.set(cameraPose.position.x, cameraPose.position.y, cameraPose.position.z);
+        if (threeControls) {
+          threeControls.target.set(cameraPose.target.x, cameraPose.target.y, cameraPose.target.z);
+          threeControls.update();
+        }
+      } else {
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const distance = maxDim * 1.8;
+        threeCamera!.position.set(distance * 0.6, distance * 0.5, distance * 0.8);
+        threeCamera!.lookAt(0, 0, 0);
+        if (threeControls) {
+          threeControls.target.set(0, 0, 0);
+          threeControls.update();
+        }
+      }
+    },
+    undefined,
+    (error) => {
+      console.error("加载GLB模型失败:", error);
+    }
+  );
+}
+
+async function loadVpModel() {
+  modelTagVisible.value = false;
+  isModelMode.value = true;
+  activeModelBtn.value = 'vp';
+  await nextTick();
+  initThreeScene();
+  loadThreeGLB(vp20ModelUrl);
+}
+
+async function loadAquiferModel() {
+  modelTagVisible.value = false;
+  isModelMode.value = true;
+  activeModelBtn.value = 'aquifer';
+  await nextTick();
+  initThreeScene();
+  loadThreeGLB(aquiferModelUrl, {
+    position: { x: -477.4129, y: -1646.843, z: -33.142 },
+    target: { x: 27.8119, y: -20.072, z: -32.2602 },
+  });
+}
+
+function exitModelMode() {
+  modelTagVisible.value = false;
+  isModelMode.value = false;
+  activeModelBtn.value = null;
+  disposeThreeScene();
+}
+
+function logCameraPose() {
+  if (!threeCamera || !threeControls) return;
+  const pos = threeCamera.position;
+  const target = threeControls.target;
+  const info = {
+    position: { x: +pos.x.toFixed(4), y: +pos.y.toFixed(4), z: +pos.z.toFixed(4) },
+    target: { x: +target.x.toFixed(4), y: +target.y.toFixed(4), z: +target.z.toFixed(4) },
+    fov: threeCamera.fov,
+    near: threeCamera.near,
+    far: threeCamera.far,
+  };
+  console.log("📷 当前相机姿态:", JSON.stringify(info, null, 2));
+  console.table(info);
+}
+
+function disposeThreeScene() {
+  if (threeAnimationId !== null) {
+    cancelAnimationFrame(threeAnimationId);
+    threeAnimationId = null;
+  }
+  if (currentThreeModel && threeScene) {
+    threeScene.remove(currentThreeModel);
+    currentThreeModel = null;
+  }
+  if (threeControls) {
+    threeControls.dispose();
+    threeControls = null;
+  }
+  if (threeRenderer) {
+    threeRenderer.domElement.removeEventListener('click', onThreeCanvasClick);
+    threeRenderer.dispose();
+    if (threeRenderer.domElement.parentNode) {
+      threeRenderer.domElement.parentNode.removeChild(threeRenderer.domElement);
+    }
+    threeRenderer = null;
+  }
+  threeScene = null;
+  threeCamera = null;
 }
 
 onMounted(() => {
   initCesium();
-  handleResize();
-  window.addEventListener('resize', handleResize);
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', handleResize);
+  disposeThreeScene();
   if (viewer) {
     viewer.destroy();
     viewer = null;
   }
 })
-
 </script>
 
 <style scoped lang="scss">
@@ -230,7 +820,6 @@ onBeforeUnmount(() => {
   position: relative;
   overflow: hidden;
 
-  /* Cesium 容器 - 绝对定位占满全屏，作为底层背景 */
   .center {
     position: absolute;
     top: 0;
@@ -251,96 +840,452 @@ onBeforeUnmount(() => {
     }
   }
 
-  /* UI 缩放层 */
-  .ui-layer {
+  .layer-controls {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 1920px;
-    height: 1080px;
-    transform-origin: left top;
-    z-index: 10;
-    pointer-events: none;
-    overflow: hidden;
-  }
-
-  /* 通用面板样式，确保在 Cesium 上方 */
-  .left-panel,
-  .right-panel,
-  .bottom-panel {
-    position: absolute;
-    /* z-index: 10; */
-    /* z-index 由 ui-layer 统一管理 */
-    pointer-events: none;
-    /* 让鼠标事件穿透到下方的 Cesium 场景，除非具体内容拦截 */
-  }
-
-  /* 左侧面板 */
-  .left-panel {
-    top: 20px;
-    left: 0;
-    width: 474px;
-    /* 控制内部图表 */
-    display: flex;
-    flex-direction: column;
-    grid-gap: 30px;
-    /* 假设宽度，可根据需要调整 */
-    height: 100%;
-    padding-top: 20px;
-    padding-left: 20px;
-    /* 如果内容需要点击，可以在内部元素上加 pointer-events: auto */
-    background: linear-gradient(to right, rgba(0, 0, 0, 0.6), transparent);
-    /* 示例背景 */
-    color: #fff;
-  }
-
-  /* 工具栏容器 */
-  .toolbar-container {
-    position: absolute;
-    left: 480px;
-    /* 紧邻左侧面板 */
-    top: 40px;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 20;
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+  }
+
+  .layer-btn {
+    min-width: 90px;
+    padding: 10px 20px;
+    font-size: 14px;
+    border-radius: 6px;
+    border: 1px solid #17c7fe;
+    background: rgba(16, 29, 41, 0.85);
+    color: #17c7fe;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    outline: none;
+    transition: background 0.2s, color 0.2s;
+
+    &:hover:not(:disabled) {
+      background: #17c7fe;
+      color: #101d29;
+      border-color: #17c7fe;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    &.active {
+      background: #17c7fe;
+      color: #101d29;
+      border-color: #17c7fe;
+    }
+  }
+
+  .layer-selector-panel {
+    position: absolute;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(16, 29, 41, 0.92);
+    border-radius: 14px;
+    padding: 20px 18px 16px 18px;
+    width: 280px;
+    max-height: 400px;
+    overflow-y: auto;
+    box-shadow: 0 4px 24px 0 rgba(23, 199, 254, 0.18),
+      0 1.5px 8px 0 rgba(0, 0, 0, 0.25);
+    border: 1.5px solid #17c7fe;
+    z-index: 30;
+    backdrop-filter: blur(2px);
+
+    h3 {
+      margin-top: 0;
+      margin-bottom: 18px;
+      color: #17c7fe;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+  }
+
+  .layer-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .layer-select-btn {
+    padding: 10px 14px;
+    background: rgba(16, 29, 41, 0.8);
+    border: 1px solid #22384a;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+    color: #eaf6ff;
+    font-size: 14px;
+    font-weight: 500;
+
+    &:hover {
+      background: rgba(23, 199, 254, 0.1);
+      border-color: #17c7fe;
+      color: #17c7fe;
+    }
+
+    &.active {
+      background: rgba(23, 199, 254, 0.2);
+      border-color: #17c7fe;
+      color: #17c7fe;
+      box-shadow: 0 0 12px rgba(23, 199, 254, 0.3);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
+  .layer-info-panel {
+    position: absolute;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(16, 29, 41, 0.92);
+    border-radius: 14px;
+    padding: 20px 18px 16px 18px;
+    width: 260px;
+    box-shadow: 0 4px 24px 0 rgba(23, 199, 254, 0.18),
+      0 1.5px 8px 0 rgba(0, 0, 0, 0.25);
+    border: 1.5px solid #17c7fe;
+    z-index: 30;
+    backdrop-filter: blur(2px);
+
+    h3 {
+      margin-top: 0;
+      margin-bottom: 18px;
+      color: #17c7fe;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+
+    th, td {
+      padding: 10px 8px;
+      text-align: left;
+      border-bottom: 1px solid #22384a;
+      font-size: 14px;
+      color: #eaf6ff;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    th {
+      background: #112233;
+      color: #17c7fe;
+      font-weight: 700;
+      border-bottom: 2px solid #17c7fe;
+    }
+
+    tr:hover td {
+      background: rgba(23, 199, 254, 0.08);
+      color: #17c7fe;
+    }
+  }
+
+  .close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: #17c7fe;
+    transition: color 0.2s;
+    font-weight: bold;
+
+    &:hover {
+      color: #fff;
+    }
+  }
+
+  .left-charts {
+    position: absolute;
+    left: 0;
+    top: 56px;
+    bottom: 90px;
+    width: 380px;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 16px;
     pointer-events: auto;
-    /* 允许点击 */
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
+
+    &::-webkit-scrollbar {
+      width: 3px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(23, 199, 254, 0.2);
+      border-radius: 2px;
+    }
   }
 
-  /* 右侧面板 */
-  .right-panel {
-    top: 20px;
-    right: 0;
-    /* bottom: 0; */
-    width: 474px;
-    /* 控制内部图表 */
-    display: flex;
-    flex-direction: column;
-    grid-gap: 30px;
-    /* 假设宽度，可根据需要调整 */
+  .three-view {
+    width: 100%;
     height: 100%;
-    padding-top: 20px;
-    padding-right: 20px;
-    text-align: right;
-    background: linear-gradient(to left, rgba(0, 0, 0, 0.6), transparent);
-    /* 示例背景 */
-    color: #fff;
+    position: relative;
+
+    .three-container {
+      width: 100%;
+      height: 100%;
+    }
   }
 
-  /* 底部工具栏 */
-  .bottom-panel {
+  .vp-floating-tag {
+    position: absolute;
+    z-index: 25;
+    transform: translate(-50%, -120%);
+    animation: tagFadeIn 0.18s ease-out;
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      bottom: -6px;
+      transform: translateX(-50%);
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 6px solid rgba(23, 199, 254, 0.85);
+    }
+  }
+
+  .vp-tag-btn {
+    padding: 8px 20px;
+    background: rgba(10, 22, 40, 0.9);
+    color: #17c7fe;
+    border: 1px solid rgba(23, 199, 254, 0.7);
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 12px rgba(23, 199, 254, 0.25);
+    transition: all 0.2s;
+
+    &:hover {
+      background: rgba(23, 199, 254, 0.25);
+      box-shadow: 0 0 18px rgba(23, 199, 254, 0.4);
+    }
+  }
+
+  @keyframes tagFadeIn {
+    from { opacity: 0; transform: translate(-50%, -110%); }
+    to { opacity: 1; transform: translate(-50%, -120%); }
+  }
+
+  .right-panel {
+    position: absolute;
+    right: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 35px;
+  }
+
+  .panel-group {
+    border: 1px solid rgba(23, 199, 254, 0.35);
+    border-radius: 10px;
+    background: rgba(10, 22, 40, 0.75);
+    backdrop-filter: blur(10px);
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .panel-group-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #17c7fe;
+    letter-spacing: 1px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(23, 199, 254, 0.2);
+    text-align: center;
+  }
+
+  .panel-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .analysis-btn {
+    --btn-rgb: 23, 199, 254;
+    padding: 10px 22px;
+    background: rgba(var(--btn-rgb), 0.18);
+    color: rgb(var(--btn-rgb));
+    border: 1px solid rgba(var(--btn-rgb), 0.5);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    backdrop-filter: blur(8px);
+    transition: all 0.2s;
+
+    &:hover:not(:disabled) {
+      background: rgba(var(--btn-rgb), 0.35);
+      border-color: rgba(var(--btn-rgb), 0.8);
+      box-shadow: 0 0 16px rgba(var(--btn-rgb), 0.35);
+    }
+
+    &.active {
+      background: rgba(var(--btn-rgb), 0.4);
+      border-color: rgb(var(--btn-rgb));
+      box-shadow: 0 0 20px rgba(var(--btn-rgb), 0.45);
+    }
+
+    &:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+  }
+
+  .camera-debug-btn {
+    align-self: stretch;
+    font-size: 12px;
+    padding: 8px 14px;
+    border-style: dashed;
+  }
+
+  .bottom-bar {
+    position: absolute;
     bottom: 0;
-    /* 紧贴底部 */
     left: 0;
     width: 100%;
     display: flex;
     justify-content: center;
-    /* 水平居中 */
     pointer-events: none;
-    /* 容器本身不阻挡交互 */
     z-index: 20;
-    /* 确保在最上层 (如果需要点击) 或者根据需求调整 */
+  }
+}
+
+.analysis-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.analysis-modal-content {
+  position: relative;
+  max-width: 60vw;
+  max-height: 70vh;
+  background: rgba(8, 18, 32, 0.96);
+  border: 1px solid rgba(23, 199, 254, 0.35);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(23, 199, 254, 0.1);
+  animation: modalZoomIn 0.25s ease-out;
+  display: flex;
+  flex-direction: column;
+
+  &--video {
+    width: 75vw;
+    max-width: 1100px;
+  }
+}
+
+.analysis-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: rgba(23, 199, 254, 0.08);
+  border-bottom: 1px solid rgba(23, 199, 254, 0.2);
+}
+
+.analysis-modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e0f4ff;
+  letter-spacing: 0.5px;
+}
+
+.analysis-modal-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+  transition: color 0.15s;
+
+  &:hover {
+    color: #fff;
+  }
+}
+
+.analysis-modal-body {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+}
+
+.analysis-modal-img {
+  max-width: 58vw;
+  max-height: 60vh;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.analysis-modal-video {
+  width: 100%;
+  max-height: 75vh;
+  border-radius: 4px;
+  outline: none;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+@keyframes modalZoomIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
   }
 }
 
