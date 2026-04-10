@@ -1,7 +1,7 @@
 <template>
   <div class="layout-footer">
-    <div class="item" @click="handleReset">
-      重置视图
+    <div class="item" @click="handleVelocityModelShow">
+      速度模型动图
     </div>
     <div class="item" @click="handleInversionShow">
       反演结果展示
@@ -10,10 +10,10 @@
 </template>
 
 <script setup lang="ts">
-const emit = defineEmits(['resetView', 'inversionShow']);
+const emit = defineEmits(['velocityModelShow', 'inversionShow']);
 
-const handleReset = () => {
-  emit('resetView');
+const handleVelocityModelShow = () => {
+  emit('velocityModelShow');
 };
 
 const handleInversionShow = () => {
