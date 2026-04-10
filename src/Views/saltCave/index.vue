@@ -17,24 +17,27 @@
 
     <!-- UI 层容器，进行整体缩放 -->
     <div class="ui-layer" ref="uiLayer">
-      <!-- 左侧面板（占位） -->
+      <!-- 左侧面板 -->
       <div class="left-panel">
-        <!-- 后续添加数据面板 -->
+        <WidgetPanel01 />
+        <WidgetPanel02 />
+        <WidgetPanel03 />
       </div>
 
       <!-- 功能按钮（占位） -->
       <div class="toolbar-container">
-        <!-- 后续添加工具栏 -->
       </div>
 
-      <!-- 右侧面板（占位） -->
+      <!-- 右侧面板 -->
       <div class="right-panel">
-        <!-- 后续添加数据面板 -->
+        <WidgetPanel04 />
+        <WidgetPanel05 />
+        <WidgetPanel06 />
       </div>
 
-      <!-- 底部工具栏（占位） -->
+      <!-- 底部工具栏 -->
       <div class="bottom-panel">
-        <!-- 后续添加底部工具栏 -->
+        <Footer @resetView="handleResetView" />
       </div>
     </div>
   </div>
@@ -46,6 +49,14 @@ import * as THREE from "three"
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { saltCaveModelUrl } from "./data"
+
+import Footer from "./components/Footer/index.vue"
+import WidgetPanel01 from "./components/Charts/WidgetPanel01.vue"
+import WidgetPanel02 from "./components/Charts/WidgetPanel02.vue"
+import WidgetPanel03 from "./components/Charts/WidgetPanel03.vue"
+import WidgetPanel04 from "./components/Charts/WidgetPanel04.vue"
+import WidgetPanel05 from "./components/Charts/WidgetPanel05.vue"
+import WidgetPanel06 from "./components/Charts/WidgetPanel06.vue"
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const uiLayer = ref<HTMLElement | null>(null)
@@ -175,6 +186,9 @@ const loadPLYModel = async () => {
     camera.lookAt(center)
     controls.update()
 
+    initialCameraPos = camera.position.clone()
+    initialControlsTarget = controls.target.clone()
+
     loadingMessage.value = "加载完成"
   } catch (err) {
     console.error("PLY模型加载失败:", err)
@@ -199,6 +213,16 @@ const handleResize = () => {
   if (uiLayer.value) {
     uiLayer.value.style.transform = `scale(${width / 1920}, ${height / 1080})`
   }
+}
+
+let initialCameraPos: THREE.Vector3 | null = null
+let initialControlsTarget: THREE.Vector3 | null = null
+
+const handleResetView = () => {
+  if (!camera || !controls || !initialCameraPos || !initialControlsTarget) return
+  camera.position.copy(initialCameraPos)
+  controls.target.copy(initialControlsTarget)
+  controls.update()
 }
 
 onMounted(() => {
