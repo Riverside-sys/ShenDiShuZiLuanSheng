@@ -1,5 +1,5 @@
 <template>
-  <div class="viewer-container" ref="viewerContainerRef">
+  <div class="viewer-container" ref="viewerContainerRef" v-show="!showSubscene">
     <!-- Three.js 三维场景容器 -->
     <div class="center">
       <div class="three-view">
@@ -15,6 +15,19 @@
       </div>
     </div>
 
+    <!-- 模型点击标签 -->
+    <div
+      v-if="showLabel"
+      class="model-label"
+      :style="{ left: labelPos.x + 'px', top: labelPos.y + 'px' }"
+    >
+      <div class="label-content">
+        <span class="label-title">盐穴单体</span>
+        <button class="label-btn" @click="enterSubscene">进入盐穴场景</button>
+      </div>
+      <div class="label-arrow"></div>
+    </div>
+
     <!-- UI 层容器，进行整体缩放 -->
     <div class="ui-layer" ref="uiLayer">
       <!-- 左侧面板 -->
@@ -24,8 +37,9 @@
         <WidgetPanel03 />
       </div>
 
-      <!-- 功能按钮（占位） -->
+      <!-- 功能按钮 -->
       <div class="toolbar-container">
+        <button class="debug-pose-btn" @click="logPose">输出当前姿态</button>
       </div>
 
       <!-- 右侧面板 -->
@@ -41,10 +55,16 @@
       </div>
     </div>
   </div>
+
+  <!-- 子场景容器 -->
+  <div class="subscene-container" v-if="showSubscene">
+    <router-view />
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from "vue"
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue"
+import { useRoute, useRouter } from "vue-router"
 import * as THREE from "three"
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
@@ -58,17 +78,52 @@ import WidgetPanel04 from "./components/Charts/WidgetPanel04.vue"
 import WidgetPanel05 from "./components/Charts/WidgetPanel05.vue"
 import WidgetPanel06 from "./components/Charts/WidgetPanel06.vue"
 
+const route = useRoute()
+const router = useRouter()
+
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const uiLayer = ref<HTMLElement | null>(null)
 const viewerContainerRef = ref<HTMLElement | null>(null)
 const isLoading = ref(false)
 const loadingMessage = ref("")
 
+const showLabel = ref(false)
+const labelPos = ref({ x: 0, y: 0 })
+
+const showSubscene = computed(() => route.name !== 'saltCave')
+
 let renderer: THREE.WebGLRenderer | null = null
 let scene: THREE.Scene | null = null
 let camera: THREE.PerspectiveCamera | null = null
 let controls: OrbitControls | null = null
 let animationId: number | null = null
+let modelMesh: THREE.Mesh | null = null
+
+const raycaster = new THREE.Raycaster()
+const mouse = new THREE.Vector2()
+
+const onCanvasClick = (event: MouseEvent) => {
+  if (!camera || !modelMesh || !viewerContainerRef.value) return
+
+  const rect = viewerContainerRef.value.getBoundingClientRect()
+  mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+  mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+
+  raycaster.setFromCamera(mouse, camera)
+  const intersects = raycaster.intersectObject(modelMesh)
+
+  if (intersects.length > 0) {
+    labelPos.value = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+    showLabel.value = true
+  } else {
+    showLabel.value = false
+  }
+}
+
+const enterSubscene = () => {
+  showLabel.value = false
+  router.push("/saltCave/subscenes/salt_cave_single")
+}
 
 const initThreeScene = () => {
   if (!canvasRef.value || !viewerContainerRef.value) return
@@ -108,6 +163,8 @@ const initThreeScene = () => {
   const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4)
   directionalLight2.position.set(-500, -500, -500)
   scene.add(directionalLight2)
+
+  viewerContainerRef.value.addEventListener("click", onCanvasClick)
 
   animate()
 }
@@ -166,24 +223,11 @@ const loadPLYModel = async () => {
 
     const mesh = new THREE.Mesh(geometry, material)
     scene.add(mesh)
+    modelMesh = mesh
 
-    geometry.computeBoundingBox()
-    const bbox = geometry.boundingBox!
-    const center = new THREE.Vector3()
-    bbox.getCenter(center)
-    const size = new THREE.Vector3()
-    bbox.getSize(size)
-
-    const maxDim = Math.max(size.x, size.y, size.z)
-    const fitDistance = maxDim * 1.5
-
-    controls.target.copy(center)
-    camera.position.set(
-      center.x + fitDistance * 0.5,
-      center.y + fitDistance * 0.8,
-      center.z + fitDistance * 0.5
-    )
-    camera.lookAt(center)
+    controls.target.set(-100.651, 146.5436, 400)
+    camera.position.set(-100.6108, -1294.404, 436.3333)
+    camera.lookAt(controls.target)
     controls.update()
 
     initialCameraPos = camera.position.clone()
@@ -225,6 +269,31 @@ const handleResetView = () => {
   controls.update()
 }
 
+const logPose = () => {
+  if (!camera || !controls) return
+  const pose = {
+    cameraPosition: {
+      x: +camera.position.x.toFixed(4),
+      y: +camera.position.y.toFixed(4),
+      z: +camera.position.z.toFixed(4),
+    },
+    controlsTarget: {
+      x: +controls.target.x.toFixed(4),
+      y: +controls.target.y.toFixed(4),
+      z: +controls.target.z.toFixed(4),
+    },
+  }
+  console.log("========== 当前模型姿态 ==========")
+  console.log(JSON.stringify(pose, null, 2))
+  console.log("==================================")
+}
+
+watch(showSubscene, (val) => {
+  if (!val) {
+    setTimeout(() => handleResize(), 100)
+  }
+})
+
 onMounted(() => {
   initThreeScene()
   loadPLYModel()
@@ -234,6 +303,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("resize", handleResize)
+
+  if (viewerContainerRef.value) {
+    viewerContainerRef.value.removeEventListener("click", onCanvasClick)
+  }
 
   if (animationId !== null) {
     cancelAnimationFrame(animationId)
@@ -252,6 +325,7 @@ onBeforeUnmount(() => {
 
   scene = null
   camera = null
+  modelMesh = null
 })
 </script>
 
@@ -368,6 +442,23 @@ onBeforeUnmount(() => {
     display: flex;
     flex-direction: column;
     gap: 15px;
+
+    .debug-pose-btn {
+      padding: 6px 14px;
+      background: rgba(255, 180, 0, 0.15);
+      color: #ffb400;
+      border: 1px solid rgba(255, 180, 0, 0.4);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      backdrop-filter: blur(8px);
+      transition: all 0.2s;
+
+      &:hover {
+        background: rgba(255, 180, 0, 0.3);
+        border-color: rgba(255, 180, 0, 0.7);
+      }
+    }
   }
 
   .right-panel {
@@ -394,5 +485,74 @@ onBeforeUnmount(() => {
     pointer-events: none;
     z-index: 20;
   }
+
+  .model-label {
+    position: absolute;
+    z-index: 50;
+    transform: translate(-50%, -100%);
+    pointer-events: auto;
+    animation: labelFadeIn 0.25s ease-out;
+
+    .label-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 18px;
+      background: rgba(0, 20, 50, 0.85);
+      border: 1px solid rgba(23, 199, 254, 0.5);
+      border-radius: 8px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 15px rgba(23, 199, 254, 0.15);
+
+      .label-title {
+        font-size: 13px;
+        color: #b9cfff;
+        white-space: nowrap;
+      }
+
+      .label-btn {
+        padding: 6px 16px;
+        background: linear-gradient(135deg, rgba(23, 199, 254, 0.25), rgba(23, 199, 254, 0.1));
+        color: #17c7fe;
+        border: 1px solid rgba(23, 199, 254, 0.6);
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        white-space: nowrap;
+        transition: all 0.2s;
+
+        &:hover {
+          background: linear-gradient(135deg, rgba(23, 199, 254, 0.45), rgba(23, 199, 254, 0.25));
+          box-shadow: 0 0 12px rgba(23, 199, 254, 0.3);
+        }
+      }
+    }
+
+    .label-arrow {
+      width: 0;
+      height: 0;
+      margin: 0 auto;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-top: 8px solid rgba(23, 199, 254, 0.5);
+    }
+  }
+
+  @keyframes labelFadeIn {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -90%);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -100%);
+    }
+  }
+}
+
+.subscene-container {
+  width: 100%;
+  height: 100%;
 }
 </style>

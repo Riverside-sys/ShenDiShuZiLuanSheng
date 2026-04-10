@@ -9,6 +9,16 @@ export const SaltCaveItem: Array<RouteRecordRaw> = [
       title: '盐穴',
       hideInMenu: false,
     },
-    children: []
+    children: [
+      {
+        path: 'subscenes/salt_cave_single',
+        name: 'salt_cave_single',
+        component: () => import('@/Views/saltCave/subscenes/SaltCaveSingle.vue'),
+        meta: {
+          title: '盐穴单体场景',
+          hideInMenu: false,
+        },
+      }
+    ]
   }
 ]

@@ -573,7 +573,7 @@ function goToUnderground() {
   } else if (selectedScene.value === "aquifer") {
     router.push("/hanshuiceng");
   } else if (selectedScene.value === "saltcave") {
-    router.push("/underground/mines");
+    router.push("/saltcave");
   }
 }
 
