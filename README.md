@@ -49,7 +49,7 @@ cd ShenDiShuZiLuanSheng
 
 ### 2. 准备 Node 与 pnpm
 
-项目要求 `Node 22+`。
+项目推荐使用 `Node 22+`。
 
 ```bash
 nvm use 22
