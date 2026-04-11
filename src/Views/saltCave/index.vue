@@ -37,9 +37,39 @@
         <WidgetPanel03 />
       </div>
 
-      <!-- 功能按钮 -->
-      <div class="toolbar-container">
-        <button class="debug-pose-btn" @click="logPose">输出当前姿态</button>
+      <!-- 顶部操作栏 -->
+      <div class="top-action-bar">
+        <button
+          class="action-btn"
+          :class="{ active: activeAction === 'patrol' }"
+          @click="handlePatrol"
+        >
+          <span class="action-icon">&#x1f504;</span>
+          <span>{{ isPatrolling ? '停止巡检' : '巡检' }}</span>
+        </button>
+        <button
+          class="action-btn"
+          :class="{ active: activeAction === 'caveA' }"
+          @click="handleViewCaveA"
+        >
+          <span class="action-icon">A</span>
+          <span>丰储1号腔</span>
+        </button>
+        <button
+          class="action-btn"
+          :class="{ active: activeAction === 'caveB' }"
+          @click="handleViewCaveB"
+        >
+          <span class="action-icon">B</span>
+          <span>通源5号腔</span>
+        </button>
+        <button class="action-btn" @click="handleOverview">
+          <span class="action-icon">&#x1f3e0;</span>
+          <span>总览</span>
+        </button>
+        <button class="action-btn debug" @click="logPose">
+          <span>输出姿态</span>
+        </button>
       </div>
 
       <!-- 右侧面板 -->
@@ -66,7 +96,8 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import * as THREE from "three"
-import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js"
+import { Tween, Group, Easing } from "@tweenjs/tween.js"
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { saltCaveModelUrl } from "./data"
 
@@ -97,20 +128,29 @@ let scene: THREE.Scene | null = null
 let camera: THREE.PerspectiveCamera | null = null
 let controls: OrbitControls | null = null
 let animationId: number | null = null
-let modelMesh: THREE.Mesh | null = null
+let modelRoot: THREE.Object3D | null = null
+
+const isPatrolling = ref(false)
+const activeAction = ref<string | null>(null)
+const tweenGroup = new Group()
+let patrolAngle = 0
+let patrolSpeed = 0.004
+let patrolRadius = 0.8
+let patrolHeight = 0.15
+let patrolTargetY = -0.05
 
 const raycaster = new THREE.Raycaster()
 const mouse = new THREE.Vector2()
 
 const onCanvasClick = (event: MouseEvent) => {
-  if (!camera || !modelMesh || !viewerContainerRef.value) return
+  if (!camera || !modelRoot || !viewerContainerRef.value) return
 
   const rect = viewerContainerRef.value.getBoundingClientRect()
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
 
   raycaster.setFromCamera(mouse, camera)
-  const intersects = raycaster.intersectObject(modelMesh)
+  const intersects = raycaster.intersectObject(modelRoot, true)
 
   if (intersects.length > 0) {
     labelPos.value = { x: event.clientX - rect.left, y: event.clientY - rect.top }
@@ -141,6 +181,7 @@ const initThreeScene = () => {
   renderer.setSize(width, height)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   renderer.setClearColor(0x000000, 0)
+  renderer.outputColorSpace = THREE.SRGBColorSpace
 
   camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 100000)
   camera.position.set(0, 500, 800)
@@ -169,65 +210,68 @@ const initThreeScene = () => {
   animate()
 }
 
-const animate = () => {
+const animate = (time?: number) => {
   animationId = requestAnimationFrame(animate)
+  tweenGroup.update(time)
+  if (isPatrolling.value && controls && camera) {
+    patrolAngle += patrolSpeed
+    const r = patrolRadius
+    camera.position.set(
+      Math.sin(patrolAngle) * r,
+      patrolHeight,
+      Math.cos(patrolAngle) * r
+    )
+    controls.target.set(0, patrolTargetY, 0)
+  }
   if (controls) controls.update()
   if (renderer && scene && camera) {
     renderer.render(scene, camera)
   }
 }
 
-const loadPLYModel = async () => {
+const loadSaltCaveModel = async () => {
   if (!scene || !camera || !controls) return
 
   isLoading.value = true
   loadingMessage.value = "正在加载盐穴三维模型..."
 
-  const loader = new PLYLoader()
+  const loader = new GLTFLoader()
 
   try {
-    const geometry = await new Promise<THREE.BufferGeometry>((resolve, reject) => {
-      loader.load(
-        saltCaveModelUrl,
-        (geo) => resolve(geo),
-        (progress) => {
-          if (progress.total > 0) {
-            const pct = Math.round((progress.loaded / progress.total) * 100)
-            loadingMessage.value = `正在加载盐穴三维模型... ${pct}%`
-          }
-        },
-        (err) => reject(err)
-      )
+    const gltf = await loader.loadAsync(saltCaveModelUrl, (progress) => {
+      if (progress.total > 0) {
+        const pct = Math.round((progress.loaded / progress.total) * 100)
+        loadingMessage.value = `正在加载盐穴三维模型... ${pct}%`
+      }
     })
 
-    geometry.computeVertexNormals()
+    const root = gltf.scene
+    root.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.castShadow = true
+        child.receiveShadow = true
+      }
+    })
 
-    let material: THREE.Material
-    if (geometry.hasAttribute("color")) {
-      material = new THREE.MeshPhongMaterial({
-        vertexColors: true,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.9,
-        shininess: 30,
-      })
-    } else {
-      material = new THREE.MeshPhongMaterial({
-        color: 0x3399ff,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.9,
-        shininess: 30,
-      })
-    }
+    const box = new THREE.Box3().setFromObject(root)
+    const center = box.getCenter(new THREE.Vector3())
+    const size = box.getSize(new THREE.Vector3())
+    const maxDim = Math.max(size.x, size.y, size.z, 1)
 
-    const mesh = new THREE.Mesh(geometry, material)
-    scene.add(mesh)
-    modelMesh = mesh
+    root.position.sub(center)
+    scene.add(root)
+    modelRoot = root
 
-    controls.target.set(-100.651, 146.5436, 400)
-    camera.position.set(-100.6108, -1294.404, 436.3333)
-    camera.lookAt(controls.target)
+    const fitHeightDistance = maxDim / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)))
+    const fitWidthDistance = fitHeightDistance / Math.max(camera.aspect, 1)
+    const distance = Math.max(fitHeightDistance, fitWidthDistance) * 1.15
+    camera.near = Math.max(maxDim / 1000, 0.1)
+    camera.far = Math.max(maxDim * 100, 100000)
+    camera.updateProjectionMatrix()
+    camera.position.set(distance * 0.9, distance * 0.35, distance * 0.9)
+    controls.minDistance = Math.max(maxDim * 0.05, 0.5)
+    controls.maxDistance = Math.max(maxDim * 20, distance * 10)
+    controls.target.set(0, 0, 0)
     controls.update()
 
     initialCameraPos = camera.position.clone()
@@ -235,7 +279,7 @@ const loadPLYModel = async () => {
 
     loadingMessage.value = "加载完成"
   } catch (err) {
-    console.error("PLY模型加载失败:", err)
+    console.error("GLB模型加载失败:", err)
     loadingMessage.value = "模型加载失败"
   } finally {
     setTimeout(() => {
@@ -288,6 +332,126 @@ const logPose = () => {
   console.log("==================================")
 }
 
+const stopPatrol = () => {
+  isPatrolling.value = false
+}
+
+type Vec3 = { x: number; y: number; z: number }
+
+interface FlyWaypoint {
+  camPos: Vec3
+  ctrlTarget: Vec3
+  duration?: number
+}
+
+const smoothFlyThrough = (waypoints: FlyWaypoint[]) => {
+  if (!camera || !controls || waypoints.length === 0) return
+  stopPatrol()
+  tweenGroup.removeAll()
+  controls.enabled = false
+
+  let step = 0
+
+  const runStep = () => {
+    if (!camera || !controls) return
+    const wp = waypoints[step]
+    const dur = wp.duration ?? 1500
+
+    const posObj = { x: camera.position.x, y: camera.position.y, z: camera.position.z }
+    const tgtObj = { x: controls.target.x, y: controls.target.y, z: controls.target.z }
+
+    const posTween = new Tween(posObj)
+      .to(wp.camPos, dur)
+      .easing(Easing.Cubic.InOut)
+      .onUpdate(() => {
+        if (camera) camera.position.set(posObj.x, posObj.y, posObj.z)
+      })
+      .onComplete(() => {
+        step++
+        if (step < waypoints.length) {
+          runStep()
+        } else {
+          if (controls) controls.enabled = true
+        }
+      })
+
+    const targetTween = new Tween(tgtObj)
+      .to(wp.ctrlTarget, dur)
+      .easing(Easing.Cubic.InOut)
+      .onUpdate(() => {
+        if (controls) controls.target.set(tgtObj.x, tgtObj.y, tgtObj.z)
+      })
+
+    tweenGroup.add(posTween)
+    tweenGroup.add(targetTween)
+    posTween.start()
+    targetTween.start()
+  }
+
+  runStep()
+}
+
+const handlePatrol = () => {
+  if (isPatrolling.value) {
+    stopPatrol()
+    activeAction.value = null
+    return
+  }
+  activeAction.value = "patrol"
+  if (camera && controls) {
+    const pos = camera.position
+    patrolAngle = Math.atan2(pos.x, pos.z)
+    patrolRadius = Math.sqrt(pos.x * pos.x + pos.z * pos.z) || 0.8
+    patrolHeight = pos.y
+    patrolTargetY = controls.target.y
+  }
+  isPatrolling.value = true
+}
+
+const handleViewCaveA = () => {
+  activeAction.value = "caveA"
+  smoothFlyThrough([
+    {
+      camPos: { x: -0.0647, y: 0.2576, z: 0.4977 },
+      ctrlTarget: { x: -0.0765, y: -0.0021, z: -0.0035 },
+      duration: 1200,
+    },
+    {
+      camPos: { x: -0.0457, y: -0.0503, z: 0.584 },
+      ctrlTarget: { x: 0.0074, y: -0.1064, z: 0.0148 },
+      duration: 1200,
+    },
+  ])
+}
+
+const handleViewCaveB = () => {
+  activeAction.value = "caveB"
+  smoothFlyThrough([
+    {
+      camPos: { x: 0.1958, y: 0.2239, z: 0.4997 },
+      ctrlTarget: { x: 0.1842, y: -0.032, z: 0.0059 },
+      duration: 1200,
+    },
+    {
+      camPos: { x: 0.2132, y: -0.0764, z: 0.5711 },
+      ctrlTarget: { x: 0.2339, y: -0.1399, z: 0.0251 },
+      duration: 1200,
+    },
+  ])
+}
+
+const handleOverview = () => {
+  activeAction.value = null
+  if (!initialCameraPos || !initialControlsTarget) return
+  smoothFlyThrough([
+    {
+      camPos: { x: initialCameraPos.x, y: initialCameraPos.y, z: initialCameraPos.z },
+      ctrlTarget: { x: initialControlsTarget.x, y: initialControlsTarget.y, z: initialControlsTarget.z },
+      duration: 1500,
+    },
+  ])
+}
+
 watch(showSubscene, (val) => {
   if (!val) {
     setTimeout(() => handleResize(), 100)
@@ -296,13 +460,15 @@ watch(showSubscene, (val) => {
 
 onMounted(() => {
   initThreeScene()
-  loadPLYModel()
+  loadSaltCaveModel()
   handleResize()
   window.addEventListener("resize", handleResize)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener("resize", handleResize)
+  stopPatrol()
+  tweenGroup.removeAll()
 
   if (viewerContainerRef.value) {
     viewerContainerRef.value.removeEventListener("click", onCanvasClick)
@@ -325,7 +491,21 @@ onBeforeUnmount(() => {
 
   scene = null
   camera = null
-  modelMesh = null
+  if (modelRoot) {
+    modelRoot.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return
+
+      child.geometry.dispose()
+
+      if (Array.isArray(child.material)) {
+        child.material.forEach((material) => material.dispose())
+      } else {
+        child.material.dispose()
+      }
+    })
+  }
+
+  modelRoot = null
 })
 </script>
 
@@ -433,30 +613,65 @@ onBeforeUnmount(() => {
     color: #fff;
   }
 
-  .toolbar-container {
+  .top-action-bar {
     position: absolute;
-    left: 480px;
-    top: 40px;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
     z-index: 20;
     pointer-events: auto;
     display: flex;
-    flex-direction: column;
-    gap: 15px;
+    gap: 12px;
+    padding: 8px 16px;
+    background: rgba(0, 15, 40, 0.75);
+    border: 1px solid rgba(23, 199, 254, 0.25);
+    border-radius: 10px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
 
-    .debug-pose-btn {
-      padding: 6px 14px;
-      background: rgba(255, 180, 0, 0.15);
-      color: #ffb400;
-      border: 1px solid rgba(255, 180, 0, 0.4);
+    .action-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      background: rgba(23, 199, 254, 0.08);
+      color: #b9cfff;
+      border: 1px solid rgba(23, 199, 254, 0.2);
       border-radius: 6px;
       cursor: pointer;
       font-size: 13px;
-      backdrop-filter: blur(8px);
-      transition: all 0.2s;
+      white-space: nowrap;
+      transition: all 0.25s;
+      letter-spacing: 0.5px;
+
+      .action-icon {
+        font-size: 14px;
+        font-weight: 700;
+        color: #17c7fe;
+      }
 
       &:hover {
-        background: rgba(255, 180, 0, 0.3);
-        border-color: rgba(255, 180, 0, 0.7);
+        background: rgba(23, 199, 254, 0.2);
+        border-color: rgba(23, 199, 254, 0.5);
+        color: #fff;
+      }
+
+      &.active {
+        background: rgba(23, 199, 254, 0.25);
+        border-color: rgba(23, 199, 254, 0.7);
+        color: #17c7fe;
+        box-shadow: 0 0 12px rgba(23, 199, 254, 0.2);
+      }
+
+      &.debug {
+        background: rgba(255, 180, 0, 0.1);
+        border-color: rgba(255, 180, 0, 0.3);
+        color: #ffb400;
+
+        &:hover {
+          background: rgba(255, 180, 0, 0.25);
+          border-color: rgba(255, 180, 0, 0.6);
+        }
       }
     }
   }

@@ -1,4 +1,4 @@
-import saltCaveModelAssetUrl from "./geobody_solid_closed.ply?url";
+import saltCaveModelAssetUrl from "./盐穴三维模型.glb?url";
 import saltCaveMultipleAssetUrl from "./salt_caves_multiple.ply?url";
 import saltCaveSingleAssetUrl from "./salt_caves_single.ply?url";
 import smoothClosedCaveAssetUrl from "./smooth_closed_cave.ply?url";
