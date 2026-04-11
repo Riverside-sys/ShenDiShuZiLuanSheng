@@ -15,6 +15,27 @@
         >
           <button class="vp-tag-btn" @click="onModelTagClick">{{ modelTagLabel }}</button>
         </div>
+        <!-- 含水层信息面板 -->
+        <Transition name="aquifer-panel">
+          <div v-if="showAquiferInfoPanel" class="aquifer-info-overlay">
+            <div class="aquifer-info-card">
+              <div class="aquifer-info-header">
+                <span class="aquifer-info-title">含水层详细信息</span>
+                <button class="aquifer-info-close" @click="closeAquiferInfo">&times;</button>
+              </div>
+              <div class="aquifer-info-body">
+                <div
+                  v-for="item in aquiferInfoData"
+                  :key="item.label"
+                  class="aquifer-info-row"
+                >
+                  <span class="aquifer-info-label">{{ item.label }}</span>
+                  <span class="aquifer-info-value">{{ item.value }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Transition>
       </div>
     </div>
 
@@ -132,6 +153,22 @@
             含水层模型转换效果
           </button>
           <button
+            class="analysis-btn"
+            :style="{ '--btn-rgb': '0, 220, 200' } as any"
+            :disabled="activeModelBtn !== 'aquifer'"
+            @click="viewAquiferInfo"
+          >
+            查看含水层信息
+          </button>
+          <button
+            class="analysis-btn"
+            :style="{ '--btn-rgb': '180, 140, 255' } as any"
+            :disabled="activeModelBtn !== 'aquifer'"
+            @click="resetAquiferCamera"
+          >
+            重置视角
+          </button>
+          <button
             v-if="isModelMode"
             class="analysis-btn"
             :style="{ '--btn-rgb': '120, 220, 120' } as any"
@@ -230,9 +267,14 @@ import {
   aquiferFullWaveformInversionImageUrl,
   aquiferFormationVideoUrl,
   vp20ModelUrl,
-  aquiferModelUrl,
+  aquiferLayerGlbUrl,
 } from "./data"
 import { layerModelUrls, layerNames as geoLayerNames } from "./data/GeologicalStratification"
+
+interface CameraPose {
+  position: { x: number; y: number; z: number };
+  target: { x: number; y: number; z: number };
+}
 
 interface AnalysisItem {
   label: string;
@@ -287,6 +329,32 @@ const activeModelBtn = ref<'vp' | 'aquifer' | null>(null);
 const modelTagVisible = ref(false);
 const modelTagPos = ref({ x: 0, y: 0 });
 const modelTagLabel = ref('');
+
+const showAquiferInfoPanel = ref(false);
+
+const AQUIFER_INIT_CAMERA: CameraPose = {
+  position: { x: -0.732, y: 0.4859, z: 1.3004 },
+  target: { x: 0, y: 0, z: 0 },
+};
+const AQUIFER_INFO_CAMERA: CameraPose = {
+  position: { x: -0.535, y: -0.0803, z: 0.559 },
+  target: { x: 0, y: 0, z: 0 },
+};
+
+const aquiferInfoData = [
+  { label: '含水层类型', value: '孔隙承压含水层' },
+  { label: '含水层厚度', value: '28.5 m' },
+  { label: '顶板埋深', value: '215.3 m' },
+  { label: '底板埋深', value: '243.8 m' },
+  { label: '水位标高', value: '-12.6 m' },
+  { label: '渗透系数', value: '3.72 m/d' },
+  { label: '储水系数', value: '2.15 × 10⁻⁴' },
+  { label: '孔隙度', value: '18.6 %' },
+  { label: '水温', value: '22.3 ℃' },
+  { label: '矿化度', value: '1.05 g/L' },
+  { label: '水质类型', value: 'HCO₃-Ca·Mg型' },
+  { label: '单位涌水量', value: '0.86 L/(s·m)' },
+];
 
 let threeScene: THREE.Scene | null = null;
 const threeRaycaster = new THREE.Raycaster();
@@ -679,11 +747,6 @@ function animateThree() {
   }
 }
 
-interface CameraPose {
-  position: { x: number; y: number; z: number };
-  target: { x: number; y: number; z: number };
-}
-
 function loadThreeGLB(url: string, cameraPose?: CameraPose) {
   if (!threeScene || !threeCamera) return;
 
@@ -747,14 +810,15 @@ async function loadAquiferModel() {
   activeModelBtn.value = 'aquifer';
   await nextTick();
   initThreeScene();
-  loadThreeGLB(aquiferModelUrl, {
-    position: { x: -477.4129, y: -1646.843, z: -33.142 },
-    target: { x: 27.8119, y: -20.072, z: -32.2602 },
+  loadThreeGLB(aquiferLayerGlbUrl, {
+    position: { x: -0.732, y: 0.4859, z: 1.3004 },
+    target: { x: 0, y: 0, z: 0 },
   });
 }
 
 function exitModelMode() {
   modelTagVisible.value = false;
+  showAquiferInfoPanel.value = false;
   isModelMode.value = false;
   activeModelBtn.value = null;
   disposeThreeScene();
@@ -773,6 +837,51 @@ function logCameraPose() {
   };
   console.log("📷 当前相机姿态:", JSON.stringify(info, null, 2));
   console.table(info);
+}
+
+function animateCameraTo(pose: CameraPose, duration = 800): Promise<void> {
+  return new Promise((resolve) => {
+    if (!threeCamera || !threeControls) { resolve(); return; }
+
+    const startPos = threeCamera.position.clone();
+    const startTarget = threeControls.target.clone();
+    const endPos = new THREE.Vector3(pose.position.x, pose.position.y, pose.position.z);
+    const endTarget = new THREE.Vector3(pose.target.x, pose.target.y, pose.target.z);
+
+    const startTime = performance.now();
+    function step() {
+      const elapsed = performance.now() - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+      threeCamera!.position.lerpVectors(startPos, endPos, ease);
+      threeControls!.target.lerpVectors(startTarget, endTarget, ease);
+      threeControls!.update();
+
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        resolve();
+      }
+    }
+    requestAnimationFrame(step);
+  });
+}
+
+function viewAquiferInfo() {
+  if (activeModelBtn.value !== 'aquifer') return;
+  animateCameraTo(AQUIFER_INFO_CAMERA, 900);
+  showAquiferInfoPanel.value = true;
+}
+
+function closeAquiferInfo() {
+  showAquiferInfoPanel.value = false;
+}
+
+function resetAquiferCamera() {
+  if (activeModelBtn.value !== 'aquifer') return;
+  showAquiferInfoPanel.value = false;
+  animateCameraTo(AQUIFER_INIT_CAMERA, 900);
 }
 
 function disposeThreeScene() {
@@ -1050,6 +1159,102 @@ onBeforeUnmount(() => {
     }
   }
 
+  .aquifer-info-overlay {
+    position: absolute;
+    right: 240px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 30;
+    pointer-events: auto;
+  }
+
+  .aquifer-info-card {
+    width: 320px;
+    background: rgba(8, 18, 36, 0.92);
+    border: 1px solid rgba(0, 220, 200, 0.45);
+    border-radius: 12px;
+    backdrop-filter: blur(14px);
+    box-shadow: 0 4px 30px rgba(0, 220, 200, 0.15), 0 1px 8px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+  }
+
+  .aquifer-info-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: rgba(0, 220, 200, 0.1);
+    border-bottom: 1px solid rgba(0, 220, 200, 0.25);
+  }
+
+  .aquifer-info-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #00dcc8;
+    letter-spacing: 0.5px;
+  }
+
+  .aquifer-info-close {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 22px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 2px;
+    transition: color 0.15s;
+
+    &:hover {
+      color: #fff;
+    }
+  }
+
+  .aquifer-info-body {
+    padding: 10px 16px 14px;
+    max-height: 380px;
+    overflow-y: auto;
+
+    &::-webkit-scrollbar {
+      width: 3px;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: rgba(0, 220, 200, 0.25);
+      border-radius: 2px;
+    }
+  }
+
+  .aquifer-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    transition: background 0.15s;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background: rgba(0, 220, 200, 0.06);
+      border-radius: 4px;
+    }
+  }
+
+  .aquifer-info-label {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.6);
+    flex-shrink: 0;
+  }
+
+  .aquifer-info-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e0f8f4;
+    text-align: right;
+    padding-left: 12px;
+  }
+
   .vp-floating-tag {
     position: absolute;
     z-index: 25;
@@ -1276,6 +1481,24 @@ onBeforeUnmount(() => {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.aquifer-panel-enter-active {
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.aquifer-panel-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.aquifer-panel-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.aquifer-panel-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 
 @keyframes modalZoomIn {
