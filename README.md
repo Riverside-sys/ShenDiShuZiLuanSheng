@@ -1,10 +1,11 @@
 # 深地特殊空间数字孪生可视化平台
 
-基于 `Vue 3 + Vite + TypeScript + Cesium` 的深地特殊空间数字孪生可视化项目，当前主要保留了 3 个核心场景：
+基于 `Vue 3 + Vite + TypeScript + Cesium` 的深地特殊空间数字孪生可视化项目，当前主要保留了 4 个核心场景：
 
 - `surface`：地面总览场景
 - `panyidong`：潘一东矿区地下场景
 - `hanshuiceng`：含水层场景
+- `saltCave`：盐穴储能场景（Three.js GLB 模型 + 相机巡检/飞行动画）
 
 项目使用 `pnpm` 进行依赖管理，默认开发端口为 `8889`。
 
@@ -16,6 +17,8 @@
 - Vue Router
 - Pinia
 - Cesium
+- Three.js
+- @tweenjs/tween.js
 - Element Plus
 - Ant Design Vue
 - ECharts
@@ -25,6 +28,7 @@
 - 支持地面场景与地下场景联动切换
 - 支持 Cesium 三维地图 / 模型展示
 - 支持含水层与矿区相关图像、视频、点云等资源展示
+- 支持盐穴储能三维模型展示，提供相机巡检、多段飞行动画等交互功能
 - 已将各路由使用的数据按场景收拢到各自目录下，便于维护
 
 ## 本地克隆与启动
@@ -45,7 +49,7 @@ cd ShenDiShuZiLuanSheng
 
 ### 2. 准备 Node 与 pnpm
 
-项目当前建议使用 `Node 22`。
+项目要求 `Node 22+`。
 
 ```bash
 nvm use 22
@@ -103,8 +107,9 @@ start.bat
 
 - `src/Views/panyidong/data/`
 - `src/Views/hanshuiceng/data/`
+- `src/Views/saltCave/data/`
 
-这两个目录中只有 `index.ts` 会被提交，真正的大文件资源需要开发者在本地自行补充。
+这些目录中只有 `index.ts` 会被提交，真正的大文件资源需要开发者在本地自行补充。
 
 如果你是新克隆仓库后第一次运行项目，需要确保类似以下的本地数据存在：
 
@@ -116,6 +121,10 @@ start.bat
   - `aquifer_vp.glb`
   - `含水层形成原理.mp4`
   - 以及 `vp20_*`、`vp动图.gif`、`速度模型动图.gif` 等图片 / 动图资源
+- `src/Views/saltCave/data/`
+  - `盐穴三维模型.glb`
+  - `geobody_solid_closed.ply`
+  - `salt_caves_multiple.ply`、`salt_caves_single.ply`、`smooth_closed_cave.ply`
 
 如果缺少这些文件，项目可以正常安装依赖，但进入对应场景时会出现资源加载失败。
 
@@ -127,6 +136,8 @@ start.bat
 - `/panyidong`：潘一东矿区场景
 - `/panyidong/subscenes/mines_roadway_gsplat`：高斯泼溅巷道子场景
 - `/hanshuiceng`：含水层场景
+- `/saltCave`：盐穴储能场景
+- `/saltCave/subscenes/salt_cave_single`：盐穴单体子场景
 - `/:pathMatch(.*)`：404 页面
 
 根路径会自动重定向到：
@@ -157,7 +168,8 @@ ShenDiShuZiLuanSheng/
 │   │   └── modules/
 │   │       ├── surface.ts
 │   │       ├── panyidong.ts
-│   │       └── hanshuiceng.ts
+│   │       ├── hanshuiceng.ts
+│   │       └── saltCave.ts
 │   ├── stores/                # Pinia 状态管理
 │   ├── styles/                # 全局样式
 │   ├── utils/                 # 通用工具
@@ -170,8 +182,12 @@ ShenDiShuZiLuanSheng/
 │       │   ├── subscenes/
 │       │   ├── utils/
 │       │   └── data/          # 本地大文件，默认不提交
-│       └── hanshuiceng/
+│       ├── hanshuiceng/
+│       │   ├── components/
+│       │   └── data/          # 本地大文件，默认不提交
+│       └── saltCave/
 │           ├── components/
+│           ├── subscenes/
 │           └── data/          # 本地大文件，默认不提交
 ├── tsconfig.json
 ├── tsconfig.app.json
