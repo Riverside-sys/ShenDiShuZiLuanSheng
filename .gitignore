@@ -9,3 +9,9 @@ src/Views/hanshuiceng/data/*
 !src/Views/hanshuiceng/data/index.ts
 src/Views/saltCave/data/*
 !src/Views/saltCave/data/index.ts
+
+graphify-out/*
+!graphify-out/graph.html
+!graphify-out/GRAPH_REPORT.md
+!graphify-out/graph.json
+src/Views/graphify-out/
