@@ -9,7 +9,9 @@ import {
   Math as CesiumMath,
   HeadingPitchRoll,
   Transforms,
-  ScreenSpaceEventType
+  ScreenSpaceEventType,
+  CameraEventType,
+  KeyboardEventModifier
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
@@ -43,6 +45,24 @@ export const initCesiumScene = async (container, modelPath) => {
 
     // 基础设置
     viewer.cesiumWidget.creditContainer.style.display = "none";
+
+    // 相机控制：左键拖拽 = FPS 视角旋转，右键/滚轮 = 推拉缩放
+    const cc = viewer.scene.screenSpaceCameraController;
+    cc.enableRotate = false; // 关闭"绕地心旋转"——地下场景里没意义
+    cc.enableTranslate = false; // 关闭"沿地球表面平移"——它和 WASD 冲突
+    cc.enableLook = true;
+    cc.lookEventTypes = CameraEventType.LEFT_DRAG;
+    cc.tiltEventTypes = [
+      CameraEventType.MIDDLE_DRAG,
+      CameraEventType.PINCH,
+      { eventType: CameraEventType.LEFT_DRAG, modifier: KeyboardEventModifier.CTRL }
+    ];
+    cc.zoomEventTypes = [
+      CameraEventType.RIGHT_DRAG,
+      CameraEventType.WHEEL,
+      CameraEventType.PINCH
+    ];
+    cc.inertiaSpin = 0.7;
     viewer.scene.globe.depthTestAgainstTerrain = true;
     viewer.scene.backgroundColor = Color.TRANSPARENT;
     viewer.scene.skyAtmosphere.show = false;
@@ -231,6 +251,88 @@ export const startRoaming = (viewer) => {
       }, stopDuration);
     },
   });
+};
+
+// 启用 WASD/QE 键盘漫游控制器
+// 返回一个 cleanup 函数，用于解绑事件
+export const setupRoamControls = (viewer, options = {}) => {
+  if (!viewer) return () => {};
+
+  // 基础移动速度（米/秒）。Cesium 的 moveForward 等接口接收的是米单位
+  const baseSpeed = options.baseSpeed ?? 20;
+  const fastSpeed = options.fastSpeed ?? 80;
+
+  const keyState = Object.create(null);
+  let raf = 0;
+  let stopped = false;
+  let last = performance.now();
+
+  const shouldIgnoreEvent = (e) => {
+    const target = e.target;
+    if (!target) return false;
+    const tag = (target.tagName || "").toUpperCase();
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+    if (target.isContentEditable) return true;
+    return false;
+  };
+
+  const onKeyDown = (e) => {
+    if (shouldIgnoreEvent(e)) return;
+    const k = e.key.toLowerCase();
+    if (["w", "a", "s", "d", "q", "e"].includes(k)) {
+      keyState[k] = true;
+      e.preventDefault();
+    }
+    if (e.key === "Shift") keyState.shift = true;
+  };
+
+  const onKeyUp = (e) => {
+    const k = e.key.toLowerCase();
+    if (["w", "a", "s", "d", "q", "e"].includes(k)) keyState[k] = false;
+    if (e.key === "Shift") keyState.shift = false;
+  };
+
+  const onBlur = () => {
+    keyState.w = keyState.a = keyState.s = keyState.d = false;
+    keyState.q = keyState.e = keyState.shift = false;
+  };
+
+  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
+  window.addEventListener("blur", onBlur);
+
+  const tick = () => {
+    if (stopped) return;
+    raf = requestAnimationFrame(tick);
+
+    const now = performance.now();
+    const dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+
+    if (!viewer || viewer.isDestroyed?.()) return;
+    const camera = viewer.scene.camera;
+    const step = (keyState.shift ? fastSpeed : baseSpeed) * dt;
+
+    let moved = false;
+    if (keyState.w) { camera.moveForward(step); moved = true; }
+    if (keyState.s) { camera.moveBackward(step); moved = true; }
+    if (keyState.a) { camera.moveLeft(step); moved = true; }
+    if (keyState.d) { camera.moveRight(step); moved = true; }
+    if (keyState.q) { camera.moveDown(step); moved = true; }
+    if (keyState.e) { camera.moveUp(step); moved = true; }
+
+    if (moved) viewer.scene.requestRender();
+  };
+
+  raf = requestAnimationFrame(tick);
+
+  return () => {
+    stopped = true;
+    cancelAnimationFrame(raf);
+    window.removeEventListener("keydown", onKeyDown);
+    window.removeEventListener("keyup", onKeyUp);
+    window.removeEventListener("blur", onBlur);
+  };
 };
 
 export const flyToPosition = (viewer, positionKey) => {

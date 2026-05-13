@@ -29,6 +29,8 @@
 - 支持 Cesium 三维地图 / 模型展示
 - 支持含水层与矿区相关图像、视频、点云等资源展示
 - 支持盐穴储能三维模型展示，提供相机巡检、多段飞行动画等交互功能
+- 新增卧牛山巷道点云子场景（Three.js + PLY），支持沿中线进入巷道内部漫游、自动巡检与分段定位
+- 潘一东矿区主场景支持 WASD/QE 键盘漫游 + 左键拖拽视角，可直接走入巷道内部
 - 已将各路由使用的数据按场景收拢到各自目录下，便于维护
 
 ## 本地克隆与启动
@@ -117,6 +119,7 @@ start.bat
   - `潘一东巷道模型.glb`
   - `VID_20250307_160117_point_cloud.ply`
   - `573240324-1-16.mp4`
+  - `卧牛山巷道模型/` — 含 `Merged mesh.ply` 主模型与 `01_perfect.ply` … `11_perfect.ply` 11 段分段点云
 - `src/Views/hanshuiceng/data/`
   - `aquifer_vp.glb`
   - `含水层形成原理.mp4`
@@ -133,8 +136,9 @@ start.bat
 当前项目保留的主要路由如下：
 
 - `/surface`：地面场景
-- `/panyidong`：潘一东矿区场景
+- `/panyidong`：潘一东矿区场景（支持 WASD/QE 漫游 + 左键拖拽转视角）
 - `/panyidong/subscenes/mines_roadway_gsplat`：高斯泼溅巷道子场景
+- `/panyidong/subscenes/woniushan_roadway`：卧牛山巷道点云子场景（Three.js，点击"进入巷道"沿中线漫游）
 - `/hanshuiceng`：含水层场景
 - `/saltCave`：盐穴储能场景
 - `/saltCave/subscenes/salt_cave_single`：盐穴单体子场景

@@ -32,6 +32,21 @@
       <div class="bottom-panel">
         <Footer @resetView="handleResetView" @startRoaming="handleStartRoaming" />
       </div>
+
+      <!-- 漫游按键提示 -->
+      <div class="key-hint-overlay">
+        <span class="hint-title">巷道漫游：</span>
+        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
+        <span>移动</span>
+        <kbd>Q</kbd><kbd>E</kbd>
+        <span>升降</span>
+        <kbd>Shift</kbd>
+        <span>加速</span>
+        <kbd>左键拖拽</kbd>
+        <span>转视角</span>
+        <kbd>滚轮 / 右键</kbd>
+        <span>推拉</span>
+      </div>
     </div>
   </div>
   <!-- 子场景容器 -->
@@ -47,7 +62,7 @@ import { useRoute } from "vue-router";
 import { Cartesian3 } from "cesium"
 
 // 引入三维场景相关函数
-import { initCesiumScene, onResetView, startRoaming, flyToPosition } from "./utils/cesiumMap.js"
+import { initCesiumScene, onResetView, startRoaming, flyToPosition, setupRoamControls } from "./utils/cesiumMap.js"
 
 // 引入组件
 import Footer from "./components/Footer/index.vue"
@@ -65,6 +80,7 @@ const cesiumContainer = ref(null);
 const uiLayer = ref(null);
 const viewerContainerRef = ref(null);
 let viewer = null;
+let teardownRoamControls = null;
 
 // 路由监听逻辑
 const route = useRoute();
@@ -78,6 +94,9 @@ const modelPath = panyidongModelUrl;
 const init = async () => {
   if (cesiumContainer.value) {
     viewer = await initCesiumScene(cesiumContainer.value, modelPath);
+    if (viewer) {
+      teardownRoamControls = setupRoamControls(viewer);
+    }
   }
 }
 
@@ -129,6 +148,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
+  if (teardownRoamControls) {
+    teardownRoamControls();
+    teardownRoamControls = null;
+  }
   if (viewer) {
     viewer.destroy()
   }
@@ -254,6 +277,43 @@ onBeforeUnmount(() => {
     /* 容器本身不阻挡交互 */
     z-index: 20;
     /* 确保在最上层 (如果需要点击) 或者根据需求调整 */
+  }
+
+  /* 漫游按键提示 */
+  .key-hint-overlay {
+    position: absolute;
+    left: 50%;
+    bottom: 112px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    color: #cfeaff;
+    font-size: 12px;
+    background: rgba(8, 26, 44, 0.72);
+    border: 1px solid rgba(95, 200, 255, 0.3);
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 25;
+    white-space: nowrap;
+
+    .hint-title {
+      color: #5fc8ff;
+      letter-spacing: 1px;
+      margin-right: 4px;
+    }
+
+    kbd {
+      display: inline-block;
+      padding: 2px 8px;
+      background: rgba(20, 50, 80, 0.7);
+      color: #cfeaff;
+      border: 1px solid rgba(95, 200, 255, 0.35);
+      border-radius: 3px;
+      font-family: Consolas, monospace;
+      font-size: 11px;
+    }
   }
 }
 
