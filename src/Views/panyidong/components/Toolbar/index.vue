@@ -56,7 +56,8 @@ const locationItems = [
 const sceneItems = [
   { label: '全矿模拟', value: 'all_mine_simulation' },
   { label: '巷道标签', value: 'tunnel_label' },
-  { label: '高斯泼溅', value: 'gaussian_splatting' }
+  { label: '高斯泼溅', value: 'gaussian_splatting' },
+  { label: '卧牛山巷道', value: 'woniushan_roadway' }
 ];
 
 const toggleMenu = (menu: string) => {
@@ -72,6 +73,8 @@ const handleItemClick = (item: any) => {
 
   if (item.value === 'gaussian_splatting') {
     router.push({ name: 'mines_roadway_gsplat' });
+  } else if (item.value === 'woniushan_roadway') {
+    router.push({ name: 'woniushan_roadway' });
   } else if (['position1', 'position2', 'position3'].includes(item.value)) {
     emit('flyTo', item.value);
   }

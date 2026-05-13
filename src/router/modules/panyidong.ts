@@ -18,6 +18,15 @@ export const PanyidongItem: Array<RouteRecordRaw> = [
           title: '高斯泼溅巷道',
           hideInMenu: false,
         },
+      },
+      {
+        path: 'subscenes/woniushan_roadway',
+        name: 'woniushan_roadway',
+        component: () => import('@/Views/panyidong/subscenes/WoniushanRoadway.vue'),
+        meta: {
+          title: '卧牛山巷道',
+          hideInMenu: false,
+        },
       }
     ]
   }
