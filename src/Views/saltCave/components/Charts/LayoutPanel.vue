@@ -44,6 +44,7 @@ const props = defineProps<PropsType>()
   .panel-body {
     height: 250px;
     padding: 0 10px 10px;
+    overflow: hidden;
   }
 }
 </style>

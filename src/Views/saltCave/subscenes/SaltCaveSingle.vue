@@ -1,5 +1,5 @@
 <template>
-  <div class="salt-cave-single-viewer">
+  <div class="salt-cave-single-viewer" ref="viewerRef">
     <!-- 加载状态 -->
     <div v-if="isLoading" class="loading-overlay">
       <div class="loading-content">
@@ -11,75 +11,121 @@
     <!-- Three.js 容器 -->
     <canvas ref="canvasRef" class="viewer-canvas"></canvas>
 
-    <!-- 切换到关联视角后的弹出标签 -->
-    <div v-if="showMultipleLabel" class="multiple-label">
-      <div class="label-content">
-        <span class="label-title">盐穴群关联状态</span>
-        <button class="label-btn" @click="switchToMultipleModel">
-          {{ isSwitchingModel ? '加载中...' : '查看盐穴关联模型' }}
-        </button>
-      </div>
-      <div class="label-arrow"></div>
-    </div>
-
-    <!-- 盐穴信息面板 -->
-    <div v-if="activeCave" class="cave-info-panel" :key="activeCave.name">
-      <div class="panel-header">
-        <span class="panel-title">{{ activeCave.name }}</span>
-        <button class="panel-close" @click="dismissCavePanel">&times;</button>
-      </div>
-      <div class="panel-body">
-        <div class="info-row" v-for="item in activeCave.info" :key="item.label">
-          <span class="info-label">{{ item.label }}</span>
-          <span class="info-value">{{ item.value }}</span>
+    <!-- UI 层 -->
+    <div class="ui-layer" ref="uiLayer">
+      <!-- 顶部标题 -->
+      <div class="top-bar">
+        <div class="brand">
+          <span class="brand-tag">盐穴单体</span>
+          <span class="brand-sub">数字孪生 · 储能分析</span>
         </div>
-      </div>
-    </div>
-
-    <!-- 控制面板 -->
-    <div class="controls">
-      <button @click="dismissAndGoBack" class="btn back-btn">返回盐穴场景</button>
-      <button @click="dismissAndResetView" class="btn">重置视角</button>
-      <button
-        @click="dismissAndToggleModel"
-        class="btn"
-        :class="isMultipleModel ? 'overview-btn' : 'link-btn'"
-        :disabled="isFlying || isSwitchingModel"
-      >
-        {{ isMultipleModel ? '查看盐穴整体分布' : '查看盐穴链接关系状态' }}
-      </button>
-
-      <!-- 盐穴选择下拉框 -->
-      <div class="cave-dropdown" v-if="!isMultipleModel">
-        <button class="btn cave-select-btn" @click="toggleDropdown" :disabled="isFlying">
-          {{ selectedCaveLabel }}
-          <span class="arrow" :class="{ open: dropdownOpen }">&#9662;</span>
-        </button>
-        <div v-if="dropdownOpen" class="dropdown-menu">
-          <div
-            v-for="cave in caveList"
-            :key="cave.id"
-            class="dropdown-item"
-            :class="{ active: activeCave?.name === cave.name }"
-            @click="selectCave(cave.id)"
-          >
-            {{ cave.name }}
+        <div class="brand-stats">
+          <div class="stat">
+            <div class="stat-label">当前盐穴</div>
+            <div class="stat-value">{{ activeCaveName }}</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">运行状态</div>
+            <div class="stat-value mode">正常</div>
           </div>
         </div>
       </div>
 
-      <button @click="logPose" class="btn debug-btn">输出当前姿态</button>
+      <!-- 左侧面板 -->
+      <div class="left-panel">
+        <CaveDetailPanel
+          :cave-data="caveData"
+          :active-id="activeCaveId"
+          @select="handleSelectCave"
+        />
+        <CaveMonitorPanel />
+      </div>
+
+      <!-- 右侧面板 -->
+      <div class="right-panel">
+        <CaveVolumePanel />
+        <CaveCreepPanel />
+        <CaveStabilityPanel />
+      </div>
+
+      <!-- 底部控制栏 -->
+      <div class="bottom-bar">
+        <div class="bottom-controls">
+          <button class="ctrl-btn" @click="dismissAndGoBack">返回盐穴场景</button>
+          <button class="ctrl-btn" @click="dismissAndResetView">重置视角</button>
+          <button
+            class="ctrl-btn"
+            :class="isMultipleModel ? 'overview-btn' : 'link-btn'"
+            :disabled="isFlying || isSwitchingModel"
+            @click="dismissAndToggleModel"
+          >
+            {{ isMultipleModel ? '查看盐穴整体分布' : '查看盐穴链接关系状态' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- 控制面板 - 左上角 -->
+      <div class="controls">
+        <div class="cave-dropdown" v-if="!isMultipleModel">
+          <button class="btn cave-select-btn" @click="toggleDropdown" :disabled="isFlying">
+            {{ selectedCaveLabel }}
+            <span class="arrow" :class="{ open: dropdownOpen }">&#9662;</span>
+          </button>
+          <div v-if="dropdownOpen" class="dropdown-menu">
+            <div
+              v-for="cave in caveList"
+              :key="cave.id"
+              class="dropdown-item"
+              :class="{ active: activeCave?.name === cave.name }"
+              @click="selectCave(cave.id)"
+            >
+              {{ cave.name }}
+            </div>
+          </div>
+        </div>
+        <button @click="logPose" class="btn debug-btn">输出当前姿态</button>
+      </div>
+
+      <!-- 切换到关联视角后的弹出标签 -->
+      <div v-if="showMultipleLabel" class="multiple-label">
+        <div class="label-content">
+          <span class="label-title">盐穴群关联状态</span>
+          <button class="label-btn" @click="switchToMultipleModel">
+            {{ isSwitchingModel ? '加载中...' : '查看盐穴关联模型' }}
+          </button>
+        </div>
+        <div class="label-arrow"></div>
+      </div>
+
+      <!-- 盐穴信息面板 -->
+      <div v-if="activeCave" class="cave-info-panel" :key="activeCave.name">
+        <div class="panel-header">
+          <span class="panel-title">{{ activeCave.name }}</span>
+          <button class="panel-close" @click="dismissCavePanel">&times;</button>
+        </div>
+        <div class="panel-body">
+          <div class="info-row" v-for="item in activeCave.info" :key="item.label">
+            <span class="info-label">{{ item.label }}</span>
+            <span class="info-value">{{ item.value }}</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from "vue"
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from "vue"
 import { useRouter } from "vue-router"
 import * as THREE from "three"
 import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import { saltCaveSingleUrl, saltCaveMultipleUrl } from "../data"
+import CaveDetailPanel from "../components/Charts/SaltCave/CaveDetailPanel.vue"
+import CaveMonitorPanel from "../components/Charts/SaltCave/CaveMonitorPanel.vue"
+import CaveVolumePanel from "../components/Charts/SaltCave/CaveVolumePanel.vue"
+import CaveCreepPanel from "../components/Charts/SaltCave/CaveCreepPanel.vue"
+import CaveStabilityPanel from "../components/Charts/SaltCave/CaveStabilityPanel.vue"
 
 const router = useRouter()
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -154,6 +200,22 @@ const selectedCaveLabel = computed(() => {
   if (activeCave.value) return activeCave.value.name
   return '选择盐穴'
 })
+
+const viewerRef = ref<HTMLDivElement | null>(null)
+const uiLayer = ref<HTMLDivElement | null>(null)
+
+const activeCaveId = computed(() => activeCave.value?.id ?? null)
+const activeCaveName = computed(() => activeCave.value?.name ?? '—')
+
+const caveData = [
+  { id: 'A', name: '丰储 1 号腔', depth: '1080 m', volume: '12.6 万 m³', status: '运行中', statusColor: '#00fea9', healthScore: 92 },
+  { id: 'B', name: '瑞盐 3 号腔', depth: '1240 m', volume: '8.3 万 m³', status: '运行中', statusColor: '#00fea9', healthScore: 88 },
+  { id: 'C', name: '通源 5 号腔', depth: '960 m', volume: '15.1 万 m³', status: '巡检', statusColor: '#f1bd49', healthScore: 85 },
+]
+
+const handleSelectCave = (id: string) => {
+  selectCave(id)
+}
 
 const toggleDropdown = () => {
   dropdownOpen.value = !dropdownOpen.value
@@ -230,10 +292,10 @@ let initialControlsTarget: THREE.Vector3 | null = null
 let currentMesh: THREE.Mesh | null = null
 
 const initThreeScene = () => {
-  if (!canvasRef.value) return
+  if (!canvasRef.value || !viewerRef.value) return
 
-  const width = window.innerWidth
-  const height = window.innerHeight
+  const width = viewerRef.value.clientWidth
+  const height = viewerRef.value.clientHeight
 
   scene = new THREE.Scene()
   scene.background = new THREE.Color(0x0a0e1a)
@@ -354,12 +416,20 @@ const handleResetView = () => {
 }
 
 const handleResize = () => {
-  if (!renderer || !camera) return
-  const width = window.innerWidth
-  const height = window.innerHeight
+  if (!renderer || !camera || !viewerRef.value) return
+  const width = viewerRef.value.clientWidth
+  const height = viewerRef.value.clientHeight
   camera.aspect = width / height
   camera.updateProjectionMatrix()
   renderer.setSize(width, height)
+  scaleUiLayer()
+}
+
+const scaleUiLayer = () => {
+  if (!uiLayer.value || !viewerRef.value) return
+  const width = viewerRef.value.clientWidth
+  const height = viewerRef.value.clientHeight
+  uiLayer.value.style.transform = `scale(${width / 1920}, ${height / 1080})`
 }
 
 const easeInOutCubic = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
@@ -562,8 +632,11 @@ const goBack = () => {
 }
 
 onMounted(() => {
-  initThreeScene()
-  loadPLYModel()
+  nextTick(() => {
+    initThreeScene()
+    loadPLYModel()
+    scaleUiLayer()
+  })
   window.addEventListener("resize", handleResize)
 })
 
@@ -651,6 +724,11 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   z-index: 100;
+  pointer-events: auto;
+
+  > * {
+    pointer-events: auto;
+  }
 }
 
 .btn {
@@ -935,6 +1013,188 @@ onBeforeUnmount(() => {
   to {
     opacity: 1;
     transform: translate(-50%, -100%) scale(1);
+  }
+}
+
+// UI Layer 样式
+.ui-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: left top;
+  z-index: 10;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.top-bar {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  padding: 14px 28px;
+  background: linear-gradient(90deg, rgba(8, 26, 44, 0.5), rgba(13, 50, 80, 0.7), rgba(8, 26, 44, 0.5));
+  border: 1px solid rgba(95, 200, 255, 0.3);
+  border-radius: 6px;
+  pointer-events: auto;
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    color: #cfeaff;
+
+    .brand-tag {
+      font-family: Douyu, sans-serif;
+      font-size: 22px;
+      letter-spacing: 4px;
+      color: #5fc8ff;
+    }
+
+    .brand-sub {
+      font-size: 12px;
+      color: #7ea7c4;
+      margin-top: 2px;
+      letter-spacing: 2px;
+    }
+  }
+
+  .brand-stats {
+    display: flex;
+    gap: 24px;
+
+    .stat {
+      text-align: center;
+      min-width: 96px;
+
+      .stat-label {
+        font-size: 12px;
+        color: #6f95b3;
+      }
+
+      .stat-value {
+        font-family: Douyu, sans-serif;
+        font-size: 20px;
+        color: #d4f7ff;
+        margin-top: 4px;
+
+        &.mode {
+          color: #65f6c5;
+        }
+      }
+    }
+  }
+}
+
+.left-panel,
+.right-panel {
+  position: absolute;
+  top: 110px;
+  width: 460px;
+  height: calc(100% - 230px);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 0 18px;
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.left-panel {
+  left: 0;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.55), transparent);
+}
+
+.right-panel {
+  right: 0;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.55), transparent);
+  text-align: right;
+}
+
+.bottom-bar {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.bottom-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  background: rgba(8, 26, 44, 0.7);
+  border: 1px solid rgba(95, 200, 255, 0.3);
+  border-radius: 6px;
+}
+
+.ctrl-btn {
+  padding: 8px 16px;
+  background: rgba(20, 50, 80, 0.6);
+  color: #cfeaff;
+  border: 1px solid rgba(95, 200, 255, 0.3);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: Douyu, sans-serif;
+  font-size: 14px;
+  letter-spacing: 2px;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    background: rgba(95, 200, 255, 0.25);
+    box-shadow: 0 0 10px rgba(95, 200, 255, 0.35);
+  }
+
+  &.active {
+    background: rgba(101, 246, 197, 0.25);
+    border-color: rgba(101, 246, 197, 0.6);
+    color: #65f6c5;
+  }
+
+  &.link-btn {
+    background: rgba(0, 230, 180, 0.15);
+    color: #00e6b4;
+    border-color: rgba(0, 230, 180, 0.4);
+
+    &:hover:not(:disabled) {
+      background: rgba(0, 230, 180, 0.3);
+      border-color: rgba(0, 230, 180, 0.7);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &.overview-btn {
+    background: rgba(160, 120, 255, 0.15);
+    color: #b490ff;
+    border-color: rgba(160, 120, 255, 0.4);
+
+    &:hover:not(:disabled) {
+      background: rgba(160, 120, 255, 0.3);
+      border-color: rgba(160, 120, 255, 0.7);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 }
 </style>
