@@ -10,7 +10,10 @@
         "noFallthroughCasesInSwitch": true,
         "noUncheckedSideEffectImports": true,
         "rootDir": "./src",
-        "outDir": "./dist"
+        "outDir": "./dist",
+        "paths": {
+            "@/*": ["./src/*"]
+        }
     },
     "include": [
         "src/**/*.ts",
