@@ -9,6 +9,7 @@
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true,
         "noUncheckedSideEffectImports": true,
+        "rootDir": "./src",
         "outDir": "./dist"
     },
     "include": [
