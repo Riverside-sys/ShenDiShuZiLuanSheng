@@ -42,3 +42,5 @@ declare module "*?url" {
     const value: string;
     export default value;
 }
+
+declare module "@mkkellogg/gaussian-splats-3d";
