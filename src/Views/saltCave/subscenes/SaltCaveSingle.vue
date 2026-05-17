@@ -636,6 +636,7 @@ onMounted(() => {
     initThreeScene()
     loadPLYModel()
     scaleUiLayer()
+    requestAnimationFrame(scaleUiLayer)
   })
   window.addEventListener("resize", handleResize)
 })
@@ -663,7 +664,7 @@ onBeforeUnmount(() => {
 .salt-cave-single-viewer {
   position: relative;
   width: 100%;
-  height: 100vh;
+  height: 100%;
   background: #0a0e1a;
   overflow: hidden;
 }
@@ -1098,10 +1099,27 @@ onBeforeUnmount(() => {
   height: calc(100% - 230px);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
   padding: 0 18px;
   pointer-events: auto;
   overflow: hidden;
+
+  :deep(.layout-panel) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+
+    .panel-body {
+      flex: 1;
+      min-height: 0;
+      height: auto;
+
+      .container {
+        height: 100%;
+      }
+    }
+  }
 }
 
 .left-panel {
