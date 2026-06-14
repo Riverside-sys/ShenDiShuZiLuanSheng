@@ -10,7 +10,6 @@ import { isElement } from 'lodash'
  * - 如果需要重新渲染图表，调用`resize`方法
  */
 export function useEcharts() {
-  let cache = {}
   const container = ref()
   const chart = shallowRef()
 
@@ -27,7 +26,6 @@ export function useEcharts() {
     window.addEventListener('resize', resize)
   }
   const setOption = (option: any) => {
-    cache = option
     if (!chart.value) boostrap()
     chart.value?.setOption(option)
   }

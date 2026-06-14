@@ -74,6 +74,7 @@
           <button class="ctrl-btn" :class="{ active: mode === 'roam' }" @click="setMode('roam')">漫游</button>
           <button class="ctrl-btn" :class="{ active: mode === 'auto' }" @click="toggleAuto">{{ mode === 'auto' ? '暂停巡检' : '自动巡检' }}</button>
           <button class="ctrl-btn" @click="handleResetView">重置视角</button>
+          <button class="ctrl-btn" @click="handleExportCameraState">输出相机</button>
           <div class="segment-jumper">
             <span class="jumper-label">分段定位</span>
             <button
@@ -593,6 +594,54 @@ const handleResetView = () => {
   })
   if (mergedPoints) mergedPoints.visible = true
   flyTo(initialCameraPos, initialTarget, 1000)
+}
+
+const formatVector3 = (v: THREE.Vector3) => ({
+  x: Number(v.x.toFixed(6)),
+  y: Number(v.y.toFixed(6)),
+  z: Number(v.z.toFixed(6)),
+})
+
+const formatEuler = (e: THREE.Euler) => ({
+  x: Number(e.x.toFixed(6)),
+  y: Number(e.y.toFixed(6)),
+  z: Number(e.z.toFixed(6)),
+  order: e.order,
+})
+
+const formatQuaternion = (q: THREE.Quaternion) => ({
+  x: Number(q.x.toFixed(6)),
+  y: Number(q.y.toFixed(6)),
+  z: Number(q.z.toFixed(6)),
+  w: Number(q.w.toFixed(6)),
+})
+
+const handleExportCameraState = async () => {
+  if (!camera) return
+
+  const cameraState = {
+    mode: mode.value,
+    activeSegmentId: activeSegmentId.value,
+    position: formatVector3(camera.position),
+    rotation: formatEuler(camera.rotation),
+    quaternion: formatQuaternion(camera.quaternion),
+    target: controls ? formatVector3(controls.target) : null,
+    fov: camera.fov,
+    near: camera.near,
+    far: camera.far,
+    zoom: camera.zoom,
+  }
+  const payload = JSON.stringify(cameraState, null, 2)
+
+  console.log('[卧牛山巷道] 当前相机状态：', cameraState)
+  console.log(payload)
+
+  try {
+    await navigator.clipboard?.writeText(payload)
+    console.info('[卧牛山巷道] 当前相机状态已复制到剪贴板')
+  } catch (err) {
+    console.warn('[卧牛山巷道] 相机状态复制到剪贴板失败，请从控制台复制', err)
+  }
 }
 
 const setMode = (next: SceneMode) => {

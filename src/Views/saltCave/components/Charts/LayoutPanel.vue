@@ -13,7 +13,7 @@
 interface PropsType {
   title: string | number
 }
-const props = defineProps<PropsType>()
+defineProps<PropsType>()
 </script>
 
 <style lang="scss" scoped>
