@@ -37,7 +37,7 @@ const list = ref([
   { name: '1#渗漏检测', event: '卤水渗入预警', type: 1, time: '21:18' },
 ])
 
-const container = ref<HTMLElement>()
+const container = ref<HTMLElement | null>(null)
 
 let timer: ReturnType<typeof setInterval> | null = null
 

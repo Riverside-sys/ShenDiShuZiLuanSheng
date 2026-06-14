@@ -112,6 +112,7 @@ const generateOptions = () => {
 
 onMounted(() => {
   nextTick(() => {
+    if (!container.value) return
     setOption(generateOptions())
   })
 })
