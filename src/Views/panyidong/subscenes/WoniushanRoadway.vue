@@ -203,6 +203,7 @@ const roadwayOffset = new THREE.Vector3()
 let roamUnitsPerSec = 8
 let roamUnitsPerSecFast = 28
 const MOUSE_SENSITIVITY = 0.0025
+let roadwayRockTexture: THREE.CanvasTexture | null = null
 const INITIAL_OVERVIEW_CAMERA = {
   position: new THREE.Vector3(-86.667923, -157.902906, 33.854284),
   target: new THREE.Vector3(-96.324913, -117.243941, -8.498375),
@@ -241,6 +242,116 @@ const resetRoadwayOffset = () => {
   applyRoadwayOffset(new THREE.Vector3())
 }
 
+const makeNoise = (x: number, y: number) => {
+  const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453123
+  return n - Math.floor(n)
+}
+
+const mix = (a: number, b: number, t: number) => a + (b - a) * t
+
+const smoothstep = (edge0: number, edge1: number, x: number) => {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)))
+  return t * t * (3 - 2 * t)
+}
+
+const valueNoise = (x: number, y: number) => {
+  const x0 = Math.floor(x)
+  const y0 = Math.floor(y)
+  const tx = smoothstep(0, 1, x - x0)
+  const ty = smoothstep(0, 1, y - y0)
+  const a = makeNoise(x0, y0)
+  const b = makeNoise(x0 + 1, y0)
+  const c = makeNoise(x0, y0 + 1)
+  const d = makeNoise(x0 + 1, y0 + 1)
+  return mix(mix(a, b, tx), mix(c, d, tx), ty)
+}
+
+const getRoadwayRockTexture = () => {
+  if (roadwayRockTexture) return roadwayRockTexture
+
+  const size = 512
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+
+  const img = ctx.createImageData(size, size)
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const nx = x / size
+      const ny = y / size
+      const large = valueNoise(nx * 6.5, ny * 6.5)
+      const medium = valueNoise(nx * 22, ny * 18)
+      const fine = valueNoise(nx * 86, ny * 72)
+      const pores = makeNoise(Math.floor(nx * 180), Math.floor(ny * 160))
+      const vein = Math.abs(Math.sin((nx * 7.5 + ny * 2.2 + large * 1.8) * Math.PI))
+      const crack = smoothstep(0.965, 1, valueNoise(nx * 42 + large * 6, ny * 38 + medium * 4))
+      const paleWear = smoothstep(0.7, 1, medium) * 0.18
+      const dampPatch = smoothstep(0.68, 1, large) * smoothstep(0.35, 0.88, 1 - vein) * 0.16
+      const speckle = pores > 0.965 ? 0.2 : pores < 0.035 ? -0.18 : 0
+      const shade = 0.64 + large * 0.22 + medium * 0.12 + fine * 0.08 + paleWear + speckle - dampPatch - crack * 0.24
+      const i = (y * size + x) * 4
+      img.data[i] = Math.max(58, Math.min(190, Math.round(150 * shade + paleWear * 45)))
+      img.data[i + 1] = Math.max(62, Math.min(196, Math.round(154 * shade + paleWear * 48)))
+      img.data[i + 2] = Math.max(62, Math.min(202, Math.round(158 * shade + dampPatch * 34 + paleWear * 52)))
+      img.data[i + 3] = 255
+    }
+  }
+  ctx.putImageData(img, 0, 0)
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.anisotropy = renderer?.capabilities.getMaxAnisotropy() ?? 1
+  roadwayRockTexture = texture
+  return texture
+}
+
+const getLargestAxis = (size: THREE.Vector3): 'x' | 'y' | 'z' => {
+  if (size.x >= size.y && size.x >= size.z) return 'x'
+  if (size.z >= size.y) return 'z'
+  return 'y'
+}
+
+const applyRoadwayFilmUv = (geometry: THREE.BufferGeometry) => {
+  const positions = geometry.getAttribute('position')
+  if (!positions) return
+
+  geometry.computeBoundingBox()
+  const bbox = geometry.boundingBox
+  if (!bbox) return
+
+  const size = new THREE.Vector3()
+  const center = new THREE.Vector3()
+  bbox.getSize(size)
+  bbox.getCenter(center)
+
+  const axis = getLargestAxis(size)
+  const crossAxes = (['x', 'y', 'z'] as const).filter((a) => a !== axis)
+  const verticalAxis = axis === 'y' ? (size.z >= size.x ? 'z' : 'x') : 'y'
+  const lateralAxis = crossAxes.find((a) => a !== verticalAxis) ?? crossAxes[0]
+  const length = Math.max(size[axis], 1)
+  const textureScale = Math.max(length / 18, 1)
+  const uvs = new Float32Array(positions.count * 2)
+
+  for (let i = 0; i < positions.count; i++) {
+    const x = positions.getX(i)
+    const y = positions.getY(i)
+    const z = positions.getZ(i)
+    const p = { x, y, z }
+    const u = ((p[axis] - bbox.min[axis]) / length) * textureScale
+    const angle = Math.atan2(p[verticalAxis] - center[verticalAxis], p[lateralAxis] - center[lateralAxis])
+    const ring = (angle + Math.PI) / (Math.PI * 2)
+    const localHeight = (p[verticalAxis] - bbox.min[verticalAxis]) / Math.max(size[verticalAxis], 1)
+    uvs[i * 2] = u
+    uvs[i * 2 + 1] = ring * 2 + localHeight * 0.35
+  }
+
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
+}
+
 const setupRenderer = () => {
   if (!canvasRef.value || !viewerRef.value) return
   const width = viewerRef.value.clientWidth || window.innerWidth
@@ -257,6 +368,9 @@ const setupRenderer = () => {
   })
   renderer.setSize(width, height)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
+  renderer.outputColorSpace = THREE.SRGBColorSpace
+  renderer.toneMapping = THREE.ACESFilmicToneMapping
+  renderer.toneMappingExposure = 1.12
 
   camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 50000)
   camera.position.set(0, 80, 200)
@@ -269,11 +383,13 @@ const setupRenderer = () => {
   controls.minDistance = 1
   controls.maxDistance = 5000
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.9))
-  const dl1 = new THREE.DirectionalLight(0x9bd4ff, 0.6)
+  scene.add(new THREE.AmbientLight(0xd8e8ff, 0.72))
+  const hemiLight = new THREE.HemisphereLight(0xd8efff, 0x3f474b, 0.58)
+  scene.add(hemiLight)
+  const dl1 = new THREE.DirectionalLight(0xbedfff, 1.15)
   dl1.position.set(500, 800, 300)
   scene.add(dl1)
-  const dl2 = new THREE.DirectionalLight(0xffffff, 0.4)
+  const dl2 = new THREE.DirectionalLight(0xd7e5ff, 0.48)
   dl2.position.set(-300, -200, -500)
   scene.add(dl2)
 
@@ -312,12 +428,19 @@ const buildObjectFromGeometry = (
 
   if (hasIndex) {
     geometry.computeVertexNormals()
+    applyRoadwayFilmUv(geometry)
+    const rockTexture = getRoadwayRockTexture()
     const material = new THREE.MeshStandardMaterial({
-      color: hasColor ? 0xffffff : options.meshColor ?? 0x8fbfff,
+      color: hasColor ? 0xffffff : options.meshColor ?? 0xffffff,
+      map: rockTexture ?? undefined,
+      bumpMap: rockTexture ?? undefined,
+      bumpScale: 0.32,
       vertexColors: hasColor,
       side: THREE.DoubleSide,
-      roughness: 0.85,
-      metalness: 0.05,
+      roughness: 0.92,
+      metalness: 0.02,
+      emissive: 0x20272a,
+      emissiveIntensity: 0.06,
     })
     return new THREE.Mesh(geometry, material)
   }
@@ -973,6 +1096,8 @@ onBeforeUnmount(() => {
     centerlineHelper = null
   }
   centerlineCurve = null
+  roadwayRockTexture?.dispose()
+  roadwayRockTexture = null
 
   controls?.dispose()
   renderer?.dispose()
