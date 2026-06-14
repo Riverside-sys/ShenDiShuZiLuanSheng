@@ -69,12 +69,11 @@
       <div class="bottom-bar">
         <div class="bottom-controls">
           <button class="ctrl-btn" @click="goBack">返回</button>
-          <button class="ctrl-btn" :class="{ active: mode === 'overview' }" @click="setMode('overview')">总览</button>
+          <button class="ctrl-btn" :class="{ active: mode === 'overview' || mode === 'overviewTour' }" @click="handleOverviewTour">总览</button>
           <button class="ctrl-btn primary" @click="handleEnterRoadway" :disabled="!hasCenterline">进入巷道</button>
           <button class="ctrl-btn" :class="{ active: mode === 'roam' }" @click="setMode('roam')">漫游</button>
           <button class="ctrl-btn" :class="{ active: mode === 'auto' }" @click="toggleAuto">{{ mode === 'auto' ? '暂停巡检' : '自动巡检' }}</button>
           <button class="ctrl-btn" @click="handleResetView">重置视角</button>
-          <button class="ctrl-btn" @click="handleExportCameraState">输出相机</button>
           <div class="segment-jumper">
             <span class="jumper-label">分段定位</span>
             <button
@@ -131,7 +130,7 @@ const loadingMessage = ref('正在初始化场景...')
 const loadProgress = ref(0)
 const errorMessage = ref('')
 
-type SceneMode = 'overview' | 'roam' | 'auto'
+type SceneMode = 'overview' | 'overviewTour' | 'roam' | 'auto'
 const mode = ref<SceneMode>('overview')
 const pointerLocked = ref(false)
 const autoProgress = ref(0)
@@ -162,7 +161,7 @@ const segmentStatus = ref<SegmentStatus[]>(
 )
 
 const loadedSegmentCount = computed(() => segmentStatus.value.filter((s) => s.loaded).length)
-const modeLabel = computed(() => ({ overview: '总览', roam: '漫游', auto: '自动巡检' }[mode.value]))
+const modeLabel = computed(() => ({ overview: '总览', overviewTour: '总览', roam: '漫游', auto: '自动巡检' }[mode.value]))
 const hasCenterline = ref(false)
 const activeSegmentLabel = computed(() => {
   if (activeSegmentId.value == null) return '—'
@@ -189,8 +188,10 @@ let lastMouseX = 0
 let lastMouseY = 0
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ')
 
+const INSPECTION_DURATION = 60_000
+const OVERVIEW_TOUR_DURATION = 10_000
 let autoStartTime = 0
-let autoDuration = 60_000
+let autoDuration = INSPECTION_DURATION
 
 let segmentCache = new Map<number, THREE.Points | THREE.Mesh>()
 const segmentGroup = new THREE.Group()
@@ -198,9 +199,47 @@ const segmentGroup = new THREE.Group()
 let centerlineCurve: THREE.CatmullRomCurve3 | null = null
 let longAxis: 'x' | 'y' | 'z' = 'x'
 let centerlineHelper: THREE.Line | null = null
+const roadwayOffset = new THREE.Vector3()
 let roamUnitsPerSec = 8
 let roamUnitsPerSecFast = 28
 const MOUSE_SENSITIVITY = 0.0025
+const INITIAL_OVERVIEW_CAMERA = {
+  position: new THREE.Vector3(-86.667923, -157.902906, 33.854284),
+  target: new THREE.Vector3(-96.324913, -117.243941, -8.498375),
+  fov: 60,
+  near: 0.1,
+  far: 50000,
+  zoom: 1,
+}
+
+const applyInitialOverviewCamera = () => {
+  if (!camera || !controls) return
+
+  camera.fov = INITIAL_OVERVIEW_CAMERA.fov
+  camera.near = INITIAL_OVERVIEW_CAMERA.near
+  camera.far = INITIAL_OVERVIEW_CAMERA.far
+  camera.zoom = INITIAL_OVERVIEW_CAMERA.zoom
+  camera.position.copy(INITIAL_OVERVIEW_CAMERA.position)
+  camera.updateProjectionMatrix()
+
+  controls.target.copy(INITIAL_OVERVIEW_CAMERA.target)
+  controls.update()
+
+  initialCameraPos.copy(INITIAL_OVERVIEW_CAMERA.position)
+  initialTarget.copy(INITIAL_OVERVIEW_CAMERA.target)
+}
+
+const applyRoadwayOffset = (offset: THREE.Vector3) => {
+  roadwayOffset.copy(offset)
+  if (mergedPoints) mergedPoints.position.copy(offset)
+  segmentGroup.position.copy(offset)
+  if (centerlineHelper) centerlineHelper.position.copy(offset)
+}
+
+const resetRoadwayOffset = () => {
+  if (roadwayOffset.lengthSq() === 0) return
+  applyRoadwayOffset(new THREE.Vector3())
+}
 
 const setupRenderer = () => {
   if (!canvasRef.value || !viewerRef.value) return
@@ -314,19 +353,7 @@ const loadMergedMesh = async () => {
     mergedBBox.getCenter(mergedCenter)
     mergedBBox.getSize(mergedSize)
 
-    const maxDim = Math.max(mergedSize.x, mergedSize.y, mergedSize.z)
-    const fitDist = maxDim * 1.4
-    const camPos = new THREE.Vector3(
-      mergedCenter.x + fitDist * 0.6,
-      mergedCenter.y + maxDim * 0.6,
-      mergedCenter.z + fitDist * 0.8
-    )
-    camera.position.copy(camPos)
-    controls.target.copy(mergedCenter)
-    controls.update()
-
-    initialCameraPos.copy(camPos)
-    initialTarget.copy(mergedCenter)
+    applyInitialOverviewCamera()
 
     loadingMessage.value = '正在分析巷道中线...'
     await nextTick()
@@ -596,67 +623,33 @@ const handleResetView = () => {
   flyTo(initialCameraPos, initialTarget, 1000)
 }
 
-const formatVector3 = (v: THREE.Vector3) => ({
-  x: Number(v.x.toFixed(6)),
-  y: Number(v.y.toFixed(6)),
-  z: Number(v.z.toFixed(6)),
-})
-
-const formatEuler = (e: THREE.Euler) => ({
-  x: Number(e.x.toFixed(6)),
-  y: Number(e.y.toFixed(6)),
-  z: Number(e.z.toFixed(6)),
-  order: e.order,
-})
-
-const formatQuaternion = (q: THREE.Quaternion) => ({
-  x: Number(q.x.toFixed(6)),
-  y: Number(q.y.toFixed(6)),
-  z: Number(q.z.toFixed(6)),
-  w: Number(q.w.toFixed(6)),
-})
-
-const handleExportCameraState = async () => {
-  if (!camera) return
-
-  const cameraState = {
-    mode: mode.value,
-    activeSegmentId: activeSegmentId.value,
-    position: formatVector3(camera.position),
-    rotation: formatEuler(camera.rotation),
-    quaternion: formatQuaternion(camera.quaternion),
-    target: controls ? formatVector3(controls.target) : null,
-    fov: camera.fov,
-    near: camera.near,
-    far: camera.far,
-    zoom: camera.zoom,
-  }
-  const payload = JSON.stringify(cameraState, null, 2)
-
-  console.log('[卧牛山巷道] 当前相机状态：', cameraState)
-  console.log(payload)
-
-  try {
-    await navigator.clipboard?.writeText(payload)
-    console.info('[卧牛山巷道] 当前相机状态已复制到剪贴板')
-  } catch (err) {
-    console.warn('[卧牛山巷道] 相机状态复制到剪贴板失败，请从控制台复制', err)
-  }
-}
-
 const setMode = (next: SceneMode) => {
   if (mode.value === next) return
 
   if (mode.value === 'roam') {
     exitPointerLock()
   }
-  if (mode.value === 'auto') stopAuto()
+  if (mode.value === 'auto' || mode.value === 'overviewTour') stopAuto()
 
   mode.value = next
 
   if (controls) {
     controls.enabled = next === 'overview'
   }
+}
+
+const handleOverviewTour = () => {
+  if (!camera || !controls || !mergedBBox) return
+  if (mode.value === 'roam') exitPointerLock()
+  if (mode.value === 'auto' || mode.value === 'overviewTour') stopAuto()
+
+  activeSegmentId.value = null
+  Array.from(segmentCache.values()).forEach((obj) => {
+    obj.visible = false
+  })
+  if (mergedPoints) mergedPoints.visible = true
+
+  startAuto(true, 'overviewTour')
 }
 
 const toggleAuto = () => {
@@ -681,6 +674,16 @@ const buildAutoPath = (outside = false) => {
       const pos = centerlineCurve.getPoint(t)
       const target = centerlineCurve.getPoint(Math.min(1, t + lookAhead))
       autoPath.push({ pos, target })
+    }
+    return
+  }
+
+  if (outside && centerlineCurve) {
+    const steps = 240
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps
+      const center = centerlineCurve.getPoint(t)
+      autoPath.push({ pos: INITIAL_OVERVIEW_CAMERA.position.clone(), target: center })
     }
     return
   }
@@ -713,11 +716,18 @@ const buildAutoPath = (outside = false) => {
   }
 }
 
-const startAuto = (outside = false) => {
+const startAuto = (outside = false, nextMode: SceneMode = 'auto') => {
   if (!camera || !controls || !mergedBBox) return
+  if (nextMode === 'overviewTour') {
+    resetRoadwayOffset()
+    applyInitialOverviewCamera()
+  } else {
+    resetRoadwayOffset()
+  }
   buildAutoPath(outside)
   if (autoPath.length < 2) return
-  mode.value = 'auto'
+  autoDuration = nextMode === 'overviewTour' ? OVERVIEW_TOUR_DURATION : INSPECTION_DURATION
+  mode.value = nextMode
   if (controls) controls.enabled = false
   autoProgress.value = 0
   autoStartTime = performance.now()
@@ -725,26 +735,34 @@ const startAuto = (outside = false) => {
 
 const stopAuto = () => {
   autoProgress.value = 0
+  resetRoadwayOffset()
 }
 
 const tickAuto = () => {
-  if (mode.value !== 'auto' || !camera || autoPath.length < 2) return
+  if ((mode.value !== 'auto' && mode.value !== 'overviewTour') || !camera || autoPath.length < 2) return
+  const isInspection = mode.value === 'auto'
   const elapsed = performance.now() - autoStartTime
   const t = Math.min(elapsed / autoDuration, 1)
-  autoProgress.value = Math.round(t * 100)
+  if (isInspection) autoProgress.value = Math.round(t * 100)
 
   const totalSegs = autoPath.length - 1
   const segIdx = Math.min(Math.floor(t * totalSegs), totalSegs - 1)
   const localT = t * totalSegs - segIdx
-  const e = easeInOutCubic(localT)
+  const e = isInspection ? easeInOutCubic(localT) : localT
 
   const a = autoPath[segIdx]
   const b = autoPath[segIdx + 1]
-  camera.position.lerpVectors(a.pos, b.pos, e)
   const lookAt = new THREE.Vector3().lerpVectors(a.target, b.target, e)
-  camera.lookAt(lookAt)
+  if (isInspection) {
+    camera.position.lerpVectors(a.pos, b.pos, e)
+    camera.lookAt(lookAt)
+  } else {
+    camera.position.copy(INITIAL_OVERVIEW_CAMERA.position)
+    camera.lookAt(INITIAL_OVERVIEW_CAMERA.target)
+    applyRoadwayOffset(INITIAL_OVERVIEW_CAMERA.target.clone().sub(lookAt))
+  }
 
-  const seg = segmentStatus.value[Math.min(Math.floor(t * 11), 10)]
+  const seg = isInspection ? segmentStatus.value[Math.min(Math.floor(t * 11), 10)] : null
   if (seg && activeSegmentId.value !== seg.id) {
     activeSegmentId.value = seg.id
   }
@@ -752,8 +770,11 @@ const tickAuto = () => {
   if (t >= 1) {
     stopAuto()
     setMode('overview')
-    if (controls) {
+    if (controls && isInspection) {
       controls.target.copy(autoPath[autoPath.length - 1].target)
+      controls.update()
+    } else if (controls) {
+      controls.target.copy(INITIAL_OVERVIEW_CAMERA.target)
       controls.update()
     }
   }
@@ -791,7 +812,7 @@ const animate = () => {
     controls.update()
   } else if (mode.value === 'roam') {
     tickRoam(dt)
-  } else if (mode.value === 'auto') {
+  } else if (mode.value === 'auto' || mode.value === 'overviewTour') {
     tickAuto()
   }
 
