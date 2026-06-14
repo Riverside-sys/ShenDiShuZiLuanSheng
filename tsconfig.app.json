@@ -32,5 +32,6 @@
         "src/**/*.jsx",
         "src/**/*.vue",
         "deprecated/src/AirCity.d.ts"
-    ]
+    ],
+    "exclude": ["src/**/*.test.ts"]
 }

@@ -3,6 +3,7 @@ deprecated/
 node_modules/
 dist/
 .DS_Store
+.superpowers/
 src/Views/panyidong/data/*
 !src/Views/panyidong/data/index.ts
 src/Views/hanshuiceng/data/*

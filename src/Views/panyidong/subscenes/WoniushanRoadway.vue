@@ -112,6 +112,7 @@ import * as THREE from 'three'
 import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { woniushanMergedUrl, woniushanSegments } from '../data'
+import { calculateRoadwayOverviewCamera } from './roadwayOverviewCamera'
 import SegmentInspectionPanel from '../components/Charts/Woniushan/SegmentInspectionPanel.vue'
 import PointCloudQualityPanel from '../components/Charts/Woniushan/PointCloudQualityPanel.vue'
 import InspectionProgressPanel from '../components/Charts/Woniushan/InspectionProgressPanel.vue'
@@ -199,35 +200,68 @@ const segmentGroup = new THREE.Group()
 let centerlineCurve: THREE.CatmullRomCurve3 | null = null
 let longAxis: 'x' | 'y' | 'z' = 'x'
 let centerlineHelper: THREE.Line | null = null
+const overviewFitPoints: THREE.Vector3[] = []
 const roadwayOffset = new THREE.Vector3()
 let roamUnitsPerSec = 8
 let roamUnitsPerSecFast = 28
 const MOUSE_SENSITIVITY = 0.0025
 let roadwayRockTexture: THREE.CanvasTexture | null = null
-const INITIAL_OVERVIEW_CAMERA = {
-  position: new THREE.Vector3(-86.667923, -157.902906, 33.854284),
-  target: new THREE.Vector3(-96.324913, -117.243941, -8.498375),
-  fov: 60,
+const OVERVIEW_CAMERA_DISTANCE_SCALE = 0.72
+const OVERVIEW_CAMERA_PITCH_DEGREES = 24
+const OVERVIEW_CAMERA_YAW_DEGREES = -68
+const initialOverviewCamera = {
+  position: new THREE.Vector3(0, 80, 200),
+  target: new THREE.Vector3(),
+  up: new THREE.Vector3(0, 0, 1),
+  fov: 52,
   near: 0.1,
   far: 50000,
   zoom: 1,
 }
 
+const updateInitialOverviewCamera = () => {
+  if (!camera || !controls || !mergedBBox || !centerlineCurve) return
+
+  const overview = calculateRoadwayOverviewCamera({
+    bounds: mergedBBox,
+    nearPoint: centerlineCurve.getPoint(0.02),
+    farPoint: centerlineCurve.getPoint(0.98),
+    targetPoint: centerlineCurve.getPoint(0.6),
+    fitPoints: overviewFitPoints,
+    aspect: camera.aspect,
+    fov: initialOverviewCamera.fov,
+    pitchDegrees: OVERVIEW_CAMERA_PITCH_DEGREES,
+    yawDegrees: OVERVIEW_CAMERA_YAW_DEGREES,
+    horizontalFill: 0.88,
+    verticalFill: 0.7,
+  })
+
+  initialOverviewCamera.position.copy(overview.position)
+  initialOverviewCamera.target.copy(overview.target)
+  initialOverviewCamera.position.lerp(overview.target, 1 - OVERVIEW_CAMERA_DISTANCE_SCALE)
+  initialOverviewCamera.up.copy(overview.up)
+  initialOverviewCamera.near = overview.near
+  initialOverviewCamera.far = overview.far
+  controls.minDistance = Math.max(mergedSize.length() * 0.02, 1)
+  controls.maxDistance = Math.max(initialOverviewCamera.position.distanceTo(overview.target) * 8, 5000)
+}
+
 const applyInitialOverviewCamera = () => {
   if (!camera || !controls) return
 
-  camera.fov = INITIAL_OVERVIEW_CAMERA.fov
-  camera.near = INITIAL_OVERVIEW_CAMERA.near
-  camera.far = INITIAL_OVERVIEW_CAMERA.far
-  camera.zoom = INITIAL_OVERVIEW_CAMERA.zoom
-  camera.position.copy(INITIAL_OVERVIEW_CAMERA.position)
+  camera.fov = initialOverviewCamera.fov
+  camera.near = initialOverviewCamera.near
+  camera.far = initialOverviewCamera.far
+  camera.zoom = initialOverviewCamera.zoom
+  camera.position.copy(initialOverviewCamera.position)
+  camera.up.copy(initialOverviewCamera.up)
   camera.updateProjectionMatrix()
 
-  controls.target.copy(INITIAL_OVERVIEW_CAMERA.target)
+  controls.target.copy(initialOverviewCamera.target)
   controls.update()
 
-  initialCameraPos.copy(INITIAL_OVERVIEW_CAMERA.position)
-  initialTarget.copy(INITIAL_OVERVIEW_CAMERA.target)
+  initialCameraPos.copy(initialOverviewCamera.position)
+  initialTarget.copy(initialOverviewCamera.target)
 }
 
 const applyRoadwayOffset = (offset: THREE.Vector3) => {
@@ -476,12 +510,12 @@ const loadMergedMesh = async () => {
     mergedBBox.getCenter(mergedCenter)
     mergedBBox.getSize(mergedSize)
 
-    applyInitialOverviewCamera()
-
     loadingMessage.value = '正在分析巷道中线...'
     await nextTick()
     computeCenterline(geometry)
     setupRoamSpeed()
+    updateInitialOverviewCamera()
+    applyInitialOverviewCamera()
 
     loadingMessage.value = '加载完成'
     loadProgress.value = 100
@@ -565,10 +599,15 @@ const computeCenterline = (geometry: THREE.BufferGeometry) => {
   const count = new Int32Array(sliceCount)
 
   const n = positions.count
+  const overviewSampleStep = Math.max(1, Math.floor(n / 6000))
+  overviewFitPoints.length = 0
   for (let i = 0; i < n; i++) {
     const x = positions.getX(i)
     const y = positions.getY(i)
     const z = positions.getZ(i)
+    if (i % overviewSampleStep === 0) {
+      overviewFitPoints.push(new THREE.Vector3(x, y, z))
+    }
     const val = longAxis === 'x' ? x : longAxis === 'y' ? y : z
     let idx = Math.floor((val - minV) / sliceWidth)
     if (idx < 0) idx = 0
@@ -661,6 +700,7 @@ const handleEnterRoadway = () => {
 
   setMode('roam')
 
+  camera.up.set(0, 1, 0)
   camera.position.copy(sample.pos)
   camera.lookAt(ahead.pos)
   cameraEuler.setFromQuaternion(camera.quaternion)
@@ -806,7 +846,7 @@ const buildAutoPath = (outside = false) => {
     for (let i = 0; i <= steps; i++) {
       const t = i / steps
       const center = centerlineCurve.getPoint(t)
-      autoPath.push({ pos: INITIAL_OVERVIEW_CAMERA.position.clone(), target: center })
+      autoPath.push({ pos: initialOverviewCamera.position.clone(), target: center })
     }
     return
   }
@@ -846,6 +886,7 @@ const startAuto = (outside = false, nextMode: SceneMode = 'auto') => {
     applyInitialOverviewCamera()
   } else {
     resetRoadwayOffset()
+    camera.up.set(0, 1, 0)
   }
   buildAutoPath(outside)
   if (autoPath.length < 2) return
@@ -880,9 +921,9 @@ const tickAuto = () => {
     camera.position.lerpVectors(a.pos, b.pos, e)
     camera.lookAt(lookAt)
   } else {
-    camera.position.copy(INITIAL_OVERVIEW_CAMERA.position)
-    camera.lookAt(INITIAL_OVERVIEW_CAMERA.target)
-    applyRoadwayOffset(INITIAL_OVERVIEW_CAMERA.target.clone().sub(lookAt))
+    camera.position.copy(initialOverviewCamera.position)
+    camera.lookAt(initialOverviewCamera.target)
+    applyRoadwayOffset(initialOverviewCamera.target.clone().sub(lookAt))
   }
 
   const seg = isInspection ? segmentStatus.value[Math.min(Math.floor(t * 11), 10)] : null
@@ -897,7 +938,7 @@ const tickAuto = () => {
       controls.target.copy(autoPath[autoPath.length - 1].target)
       controls.update()
     } else if (controls) {
-      controls.target.copy(INITIAL_OVERVIEW_CAMERA.target)
+      controls.target.copy(initialOverviewCamera.target)
       controls.update()
     }
   }
@@ -1018,11 +1059,17 @@ const onPointerLockChange = () => {
 
 const handleResize = () => {
   if (!viewerRef.value || !renderer || !camera) return
+  const wasAtInitialView =
+    mode.value === 'overview' &&
+    camera.position.distanceToSquared(initialCameraPos) < 0.01 &&
+    (!controls || controls.target.distanceToSquared(initialTarget) < 0.01)
   const width = viewerRef.value.clientWidth
   const height = viewerRef.value.clientHeight
   camera.aspect = width / height
   camera.updateProjectionMatrix()
   renderer.setSize(width, height)
+  updateInitialOverviewCamera()
+  if (wasAtInitialView) applyInitialOverviewCamera()
   scaleUiLayer()
 }
 
@@ -1096,6 +1143,7 @@ onBeforeUnmount(() => {
     centerlineHelper = null
   }
   centerlineCurve = null
+  overviewFitPoints.length = 0
   roadwayRockTexture?.dispose()
   roadwayRockTexture = null
 
