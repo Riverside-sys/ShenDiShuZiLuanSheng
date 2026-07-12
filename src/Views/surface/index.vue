@@ -18,6 +18,18 @@
       </select>
     </div>
 
+    <div v-if="selectedScene === 'aquifer' && wellsLayerReady" class="well-legend">
+      <div class="legend-title">苏北含水层井网 · {{ AQUIFER_WELLS.length }} 口</div>
+      <div class="legend-item">
+        <span class="legend-dot research"></span>
+        有研究资料 {{ wellsWithResearchData }} 口
+      </div>
+      <div class="legend-item">
+        <span class="legend-dot coordinate"></span>
+        仅校正坐标 {{ wellsWithCoordinatesOnly }} 口
+      </div>
+    </div>
+
     <!-- 跳转地下按钮 -->
     <div v-if="showUndergroundBtn" class="underground-btn-container">
       <button @click="goToUnderground" class="underground-btn">
@@ -62,14 +74,20 @@ import { onMounted, ref, onBeforeUnmount, reactive } from "vue";
 import { useRouter } from "vue-router";
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
+import { AQUIFER_WELLS } from "@/data/aquifer";
 import { surfaceAquiferKmlUrl, surfaceMinesGeoJsonUrl } from "./data";
+import { createAquiferWellGeoJson } from "./utils/aquiferWells";
+import { createLatestRequestGuard } from "./utils/latestRequest";
 
 // 保存 Viewer 实例
 let viewer = null;
 // 保存当前加载的数据源 (KML 或 GeoJSON)
 let currentDataSource = null;
+// 含水层井位作为独立数据源，与测线 KML 分开管理
+let aquiferWellDataSource = null;
 // 鼠标事件处理器
 let handler = null;
+const sceneLoadGuard = createLatestRequestGuard();
 
 const router = useRouter();
 
@@ -77,6 +95,12 @@ const router = useRouter();
 const selectedScene = ref(null);
 const showUndergroundBtn = ref(false);
 const currentSceneName = ref("");
+const wellsLayerReady = ref(false);
+const wellsWithResearchData = AQUIFER_WELLS.filter(
+  (well) => well.resources.length > 0
+).length;
+const wellsWithCoordinatesOnly =
+  AQUIFER_WELLS.length - wellsWithResearchData;
 // 测线弹窗相关
 const selectedLineInfo = ref(null);
 const popupStyle = reactive({
@@ -102,9 +126,9 @@ const scenes = [
   {
     id: "aquifer",
     name: "含水层",
-    lon: 117.075794,
-    lat: 36.650656,
-    height: 8000, // 调整高度以适配框的大小
+    lon: 119.735747,
+    lat: 33.729434,
+    height: 180000,
     heading: 0, // 正北方向
     pitch: -1.57, // 接近垂直俯视 (-90度)
     roll: 0,
@@ -125,17 +149,22 @@ const scenes = [
 async function flyToScene(scene) {
   if (!viewer) return;
 
+  const requestIsCurrent = sceneLoadGuard.begin();
+  const canApplySceneLoad = () =>
+    requestIsCurrent() &&
+    viewer &&
+    !viewer.isDestroyed() &&
+    selectedScene.value === scene.id;
+
   selectedScene.value = scene.id;
   currentSceneName.value = scene.name;
+  showUndergroundBtn.value = false;
 
   // 清除之前的高亮实体
   clearHighlightEntities();
 
   // 清除之前的数据源 (KML 或 GeoJSON)
-  if (currentDataSource) {
-    viewer.dataSources.remove(currentDataSource);
-    currentDataSource = null;
-  }
+  clearCurrentSceneDataSources();
 
   // 特殊处理废弃矿井场景：加载 GeoJSON
   if (scene.id === "mines") {
@@ -152,7 +181,7 @@ async function flyToScene(scene) {
       });
 
       // 如果在加载过程中切换了场景，则放弃此次加载
-      if (selectedScene.value !== "mines") {
+      if (!canApplySceneLoad()) {
         return;
       }
 
@@ -164,8 +193,10 @@ async function flyToScene(scene) {
         duration: 2.0,
         offset: new Cesium.HeadingPitchRange(0, -1.57, 2000)
       }).then(() => {
-        // 飞行完成后显示跳转地下按钮
-        showUndergroundBtn.value = true;
+        if (canApplySceneLoad()) {
+          // 飞行完成后显示跳转地下按钮
+          showUndergroundBtn.value = true;
+        }
       });
 
       return;
@@ -177,6 +208,8 @@ async function flyToScene(scene) {
 
   // 特殊处理含水层场景：加载 KML
   if (scene.id === "aquifer") {
+    let loadedKmlDataSource = null;
+
     try {
       const kmlPath = surfaceAquiferKmlUrl;
       console.log("Loading KML from:", kmlPath);
@@ -188,12 +221,13 @@ async function flyToScene(scene) {
       });
 
       // 如果在加载过程中切换了场景，则放弃此次加载
-      if (selectedScene.value !== "aquifer") {
+      if (!canApplySceneLoad()) {
         return;
       }
 
       viewer.dataSources.add(kmlDataSource);
       currentDataSource = kmlDataSource;
+      loadedKmlDataSource = kmlDataSource;
 
       // 遍历 KML 中的实体，添加名称标签
       const entities = kmlDataSource.entities.values;
@@ -226,21 +260,49 @@ async function flyToScene(scene) {
         }
       }
 
-      // 飞行到 KML 数据范围
-      viewer.flyTo(kmlDataSource, {
-        duration: 2.0
-      }).then(() => {
-        // 飞行完成后显示跳转地下按钮
-        showUndergroundBtn.value = true;
-      });
-
       // 绑定点击事件
       bindClickEvent();
+    } catch (error) {
+      console.error("加载含水层测线 KML 失败:", error);
+    }
+
+    try {
+      const wellGeoJson = createAquiferWellGeoJson(AQUIFER_WELLS);
+      const wellDataSource = await Cesium.GeoJsonDataSource.load(wellGeoJson, {
+        clampToGround: true,
+      });
+
+      if (!canApplySceneLoad()) {
+        return;
+      }
+
+      viewer.dataSources.add(wellDataSource);
+      aquiferWellDataSource = wellDataSource;
+      styleAquiferWellEntities(wellDataSource);
+      wellsLayerReady.value = true;
+
+      viewer.flyTo(wellDataSource, {
+        duration: 2.0,
+      }).then(() => {
+        if (canApplySceneLoad()) {
+          showUndergroundBtn.value = true;
+        }
+      });
 
       return;
     } catch (error) {
-      console.error("加载 KML 失败，降级使用默认坐标:", error);
-      // 如果加载失败，继续执行下方的默认飞行逻辑
+      console.error("加载含水层井位失败:", error);
+    }
+
+    if (loadedKmlDataSource) {
+      viewer.flyTo(loadedKmlDataSource, {
+        duration: 2.0,
+      }).then(() => {
+        if (canApplySceneLoad()) {
+          showUndergroundBtn.value = true;
+        }
+      });
+      return;
     }
   }
 
@@ -257,6 +319,7 @@ async function flyToScene(scene) {
     },
     duration: 2,
     complete: () => {
+      if (!canApplySceneLoad()) return;
       // 飞行完成后显示跳转地下按钮
       showUndergroundBtn.value = true;
       // 添加高亮区域和标签
@@ -272,6 +335,62 @@ function clearHighlightEntities() {
     viewer.entities.remove(entity);
   });
   highlightEntities.length = 0;
+}
+
+// 移除当前场景加载的测线、区域和井位数据源
+function clearCurrentSceneDataSources() {
+  if (currentDataSource && viewer && !viewer.isDestroyed()) {
+    viewer.dataSources.remove(currentDataSource);
+  }
+  currentDataSource = null;
+
+  if (aquiferWellDataSource && viewer && !viewer.isDestroyed()) {
+    viewer.dataSources.remove(aquiferWellDataSource);
+  }
+  aquiferWellDataSource = null;
+  wellsLayerReady.value = false;
+}
+
+// 根据是否具备研究资料设置井点和标签样式
+function styleAquiferWellEntities(dataSource) {
+  const now = Cesium.JulianDate.now();
+
+  for (const entity of dataSource.entities.values) {
+    const properties = entity.properties?.getValue(now) ?? {};
+    const hasResearchData = properties.hasResearchData === true;
+    const color = hasResearchData
+      ? Cesium.Color.fromCssColorString("#65f6c5")
+      : Cesium.Color.fromCssColorString("#00d8ff");
+
+    entity.billboard = undefined;
+    entity.point = new Cesium.PointGraphics({
+      pixelSize: hasResearchData ? 12 : 8,
+      color,
+      outlineColor: Cesium.Color.WHITE,
+      outlineWidth: hasResearchData ? 2 : 1,
+      heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      scaleByDistance: new Cesium.NearFarScalar(2000, 1.4, 500000, 0.65),
+    });
+    entity.label = new Cesium.LabelGraphics({
+      text: properties.name ?? entity.name ?? "",
+      font: hasResearchData
+        ? 'bold 16px "Microsoft YaHei", sans-serif'
+        : '14px "Microsoft YaHei", sans-serif',
+      fillColor: color,
+      outlineColor: Cesium.Color.BLACK,
+      outlineWidth: 3,
+      style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+      verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+      pixelOffset: new Cesium.Cartesian2(0, -12),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      distanceDisplayCondition: new Cesium.DistanceDisplayCondition(
+        0,
+        hasResearchData ? 300000 : 90000
+      ),
+      scaleByDistance: new Cesium.NearFarScalar(2000, 1.1, 300000, 0.55),
+    });
+  }
 }
 
 // 添加高亮区域和文字标签
@@ -423,6 +542,18 @@ function handleSelect() {
 function roamScenes() {
   if (!viewer) return;
 
+  const roamIsCurrent = sceneLoadGuard.begin();
+  const canContinueRoam = () =>
+    roamIsCurrent() && viewer && !viewer.isDestroyed();
+  clearCurrentSceneDataSources();
+  clearHighlightEntities();
+  showUndergroundBtn.value = false;
+  selectedLineInfo.value = null;
+  if (handler) {
+    handler.destroy();
+    handler = null;
+  }
+
   const camera = viewer.camera;
 
   // --- 定义三个飞行阶段：
@@ -470,10 +601,12 @@ function roamScenes() {
 
   // 在区域一停留 1 秒后飞往区域二
   firstOptions.complete = () => {
+    if (!canContinueRoam()) return;
     selectedScene.value = scenes[0].id;
     currentSceneName.value = scenes[0].name;
     addHighlightArea(scenes[0]);
     setTimeout(() => {
+      if (!canContinueRoam()) return;
       clearHighlightEntities();
       camera.flyTo(secondOptions);
     }, 1000);
@@ -481,10 +614,12 @@ function roamScenes() {
 
   // 在区域二停留 1 秒后飞往区域三
   secondOptions.complete = () => {
+    if (!canContinueRoam()) return;
     selectedScene.value = scenes[1].id;
     currentSceneName.value = scenes[1].name;
     addHighlightArea(scenes[1]);
     setTimeout(() => {
+      if (!canContinueRoam()) return;
       clearHighlightEntities();
       camera.flyTo(thirdOptions);
     }, 1000);
@@ -492,6 +627,7 @@ function roamScenes() {
 
   // 在区域三完成时显示跳转按钮
   thirdOptions.complete = () => {
+    if (!canContinueRoam()) return;
     selectedScene.value = scenes[2].id;
     currentSceneName.value = scenes[2].name;
     addHighlightArea(scenes[2]);
@@ -580,18 +716,13 @@ function goToUnderground() {
 // 回归到初始地球视角
 function flyHome() {
   if (!viewer) return;
+  sceneLoadGuard.invalidate();
   viewer.camera.flyHome(2);
   selectedScene.value = null;
   showUndergroundBtn.value = false;
   clearHighlightEntities();
 
-  // 清除数据源
-  if (currentDataSource) {
-    if (viewer) {
-      viewer.dataSources.remove(currentDataSource);
-    }
-    currentDataSource = null;
-  }
+  clearCurrentSceneDataSources();
 
   // 销毁事件处理器
   if (handler) {
@@ -677,14 +808,12 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  sceneLoadGuard.invalidate();
+
   // 清除高亮实体
   clearHighlightEntities();
 
-  // 清除数据源
-  if (currentDataSource && viewer) {
-    viewer.dataSources.remove(currentDataSource);
-    currentDataSource = null;
-  }
+  clearCurrentSceneDataSources();
 
   // 销毁事件处理器
   if (handler) {
@@ -753,6 +882,51 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   flex-wrap: wrap;
   justify-content: center;
+}
+
+.well-legend {
+  position: absolute;
+  top: 92px;
+  left: 24px;
+  z-index: 100;
+  min-width: 210px;
+  padding: 12px 14px;
+  color: #cfeaff;
+  background: rgba(3, 17, 29, 0.86);
+  border: 1px solid rgba(0, 216, 255, 0.55);
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+
+.legend-title {
+  margin-bottom: 9px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border: 1px solid #ffffff;
+  border-radius: 50%;
+}
+
+.legend-dot.research {
+  background: #65f6c5;
+}
+
+.legend-dot.coordinate {
+  background: #00d8ff;
 }
 
 .scene-buttons {
