@@ -73,4 +73,23 @@ test("洋3井附带可预览的原始剖面扫描图", () => {
         presentation.scannedDocument?.url,
         "/aquifer/documents/yang3-section.jpg",
     );
+    assert.equal(presentation.scannedDocument?.actionLabel, "查看原始剖面图");
+});
+
+test("石4井附带综合柱状图预览入口", () => {
+    const shi4: AquiferWell = {
+        ...wellWithResearchData,
+        id: "石4井",
+        name: "石4井",
+        resources: ["column-diagram"],
+    };
+
+    const presentation = createAquiferWellPresentation(shi4);
+    assert.equal(presentation.hasInteractiveResearchData, false);
+    assert.equal(presentation.scannedDocument?.wellId, "石4井");
+    assert.equal(presentation.scannedDocument?.actionLabel, "查看综合柱状图");
+    assert.equal(
+        presentation.scannedDocument?.url,
+        "/aquifer/documents/shi4-column.jpg",
+    );
 });

@@ -138,7 +138,7 @@
           class="research-open-btn research-open-btn--secondary"
           @click="openWellDocumentPreview(selectedWellInfo.scannedDocument)"
         >
-          查看原始剖面图
+          {{ selectedWellInfo.scannedDocument.actionLabel }}
         </button>
       </div>
     </div>
