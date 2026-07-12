@@ -2,7 +2,7 @@ import panyidongModelAssetUrl from "./潘一东巷道模型.glb?url";
 import panyidongGsplatAssetUrl from "./VID_20250307_160117_point_cloud.ply?url";
 import panyidongMonitoringVideoAssetUrl from "./573240324-1-16.mp4?url";
 
-import woniushanMergedMeshUrl from "./卧牛山巷道模型/Merged mesh_finnal.ply?url";
+import woniushanMergedMeshUrl from "./卧牛山巷道模型/Mesh_colored.ply?url";
 import woniushanSegment01Url from "./卧牛山巷道模型/01_perfect.ply?url";
 import woniushanSegment02Url from "./卧牛山巷道模型/02_perfect.ply?url";
 import woniushanSegment03Url from "./卧牛山巷道模型/03_perfect.ply?url";
