@@ -42,7 +42,7 @@
     <div id="cesiumContainer" class="viewer"></div>
 
     <!-- 测线信息弹窗 -->
-    <div v-if="selectedLineInfo" class="line-info-popup" :style="popupStyle">
+    <div v-if="selectedLineInfo" class="spatial-info-popup line-info-popup" :style="popupStyle">
       <div class="popup-header">
         <h3>测线信息</h3>
         <button class="close-btn" @click="closeLinePopup">×</button>
@@ -66,18 +66,67 @@
         </div>
       </div>
     </div>
+
+    <!-- 井位资料卡片 -->
+    <div v-if="selectedWellInfo" class="spatial-info-popup well-info-popup" :style="popupStyle">
+      <div class="popup-header">
+        <div class="well-title">
+          <h3>{{ selectedWellInfo.name }} 井位档案</h3>
+          <span :class="['well-status', { rich: selectedWellInfo.hasResearchData }]">
+            {{ selectedWellInfo.hasResearchData ? "有研究资料" : "仅校正坐标" }}
+          </span>
+        </div>
+        <button class="close-btn" @click="closeWellPopup">×</button>
+      </div>
+      <div class="popup-content">
+        <div class="info-item">
+          <span class="label">WGS84</span>
+          <span class="value">{{ selectedWellInfo.longitude }}, {{ selectedWellInfo.latitude }}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">CGCS2000</span>
+          <span class="value coordinate-value">
+            N {{ selectedWellInfo.northing }}<br>
+            E {{ selectedWellInfo.easting }}
+          </span>
+        </div>
+        <div class="info-item">
+          <span class="label">井型</span>
+          <span class="value">{{ selectedWellInfo.wellType }}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">完井日期</span>
+          <span class="value">{{ selectedWellInfo.completionDate }}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">所属区域</span>
+          <span class="value">{{ selectedWellInfo.region }}</span>
+        </div>
+        <div class="resource-section">
+          <div class="resource-title">已收录资料</div>
+          <div v-if="selectedWellInfo.resourceLabels.length" class="resource-list">
+            <span v-for="resource in selectedWellInfo.resourceLabels" :key="resource" class="resource-chip">
+              {{ resource }}
+            </span>
+          </div>
+          <div v-else class="resource-empty">当前仅收录校正坐标</div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref, onBeforeUnmount, reactive } from "vue";
+import { nextTick, onMounted, ref, onBeforeUnmount, reactive } from "vue";
 import { useRouter } from "vue-router";
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
-import { AQUIFER_WELLS } from "@/data/aquifer";
+import { AQUIFER_WELLS, findAquiferWellById } from "@/data/aquifer";
 import { surfaceAquiferKmlUrl, surfaceMinesGeoJsonUrl } from "./data";
 import { createAquiferWellGeoJson } from "./utils/aquiferWells";
+import { createAquiferWellPresentation } from "./utils/aquiferWellPresentation";
 import { createLatestRequestGuard } from "./utils/latestRequest";
+import { calculatePopupPosition } from "./utils/popupPosition";
 
 // 保存 Viewer 实例
 let viewer = null;
@@ -103,6 +152,7 @@ const wellsWithCoordinatesOnly =
   AQUIFER_WELLS.length - wellsWithResearchData;
 // 测线弹窗相关
 const selectedLineInfo = ref(null);
+const selectedWellInfo = ref(null);
 const popupStyle = reactive({
   left: '0px',
   top: '0px'
@@ -165,6 +215,7 @@ async function flyToScene(scene) {
 
   // 清除之前的数据源 (KML 或 GeoJSON)
   clearCurrentSceneDataSources();
+  clearSceneClickHandler();
 
   // 特殊处理废弃矿井场景：加载 GeoJSON
   if (scene.id === "mines") {
@@ -209,6 +260,7 @@ async function flyToScene(scene) {
   // 特殊处理含水层场景：加载 KML
   if (scene.id === "aquifer") {
     let loadedKmlDataSource = null;
+    bindClickEvent();
 
     try {
       const kmlPath = surfaceAquiferKmlUrl;
@@ -260,8 +312,6 @@ async function flyToScene(scene) {
         }
       }
 
-      // 绑定点击事件
-      bindClickEvent();
     } catch (error) {
       console.error("加载含水层测线 KML 失败:", error);
     }
@@ -349,6 +399,8 @@ function clearCurrentSceneDataSources() {
   }
   aquiferWellDataSource = null;
   wellsLayerReady.value = false;
+  selectedLineInfo.value = null;
+  selectedWellInfo.value = null;
 }
 
 // 根据是否具备研究资料设置井点和标签样式
@@ -549,10 +601,7 @@ function roamScenes() {
   clearHighlightEntities();
   showUndergroundBtn.value = false;
   selectedLineInfo.value = null;
-  if (handler) {
-    handler.destroy();
-    handler = null;
-  }
+  clearSceneClickHandler();
 
   const camera = viewer.camera;
 
@@ -638,23 +687,66 @@ function roamScenes() {
   camera.flyTo(firstOptions);
 }
 
-// 绑定鼠标点击事件
-function bindClickEvent() {
-  if (!viewer) return;
+// 将弹窗限制在 Cesium 可视区域内
+function setPopupPosition(position, cardWidth, cardHeight) {
+  const canvas = viewer?.scene.canvas;
+  const viewportWidth = canvas?.clientWidth ?? window.innerWidth;
+  const viewportHeight = canvas?.clientHeight ?? window.innerHeight;
+  const applyPosition = (width, height) => {
+    const { left, top } = calculatePopupPosition(
+      position,
+      { width: viewportWidth, height: viewportHeight },
+      { width, height }
+    );
+    popupStyle.left = `${left}px`;
+    popupStyle.top = `${top}px`;
+  };
 
-  // 如果已经绑定过，先销毁
+  applyPosition(cardWidth, cardHeight);
+  nextTick(() => {
+    const popup = document.querySelector(".spatial-info-popup");
+    if (!popup) return;
+    const bounds = popup.getBoundingClientRect();
+    applyPosition(bounds.width, bounds.height);
+  });
+}
+
+function clearSceneClickHandler() {
   if (handler) {
     handler.destroy();
     handler = null;
   }
+}
+
+// 绑定鼠标点击事件
+function bindClickEvent() {
+  if (!viewer) return;
+  clearSceneClickHandler();
 
   handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
 
   handler.setInputAction((movement) => {
     const pickedObject = viewer.scene.pick(movement.position);
+    const pickedEntity = Cesium.defined(pickedObject)
+      ? pickedObject.id
+      : null;
+    const entityProperties = pickedEntity?.properties?.getValue(
+      Cesium.JulianDate.now()
+    );
+    const wellId = entityProperties?.wellId;
 
-    if (Cesium.defined(pickedObject) && pickedObject.id && pickedObject.id.polyline) {
-      const entity = pickedObject.id;
+    if (typeof wellId === "string") {
+      const well = findAquiferWellById(wellId);
+      if (well) {
+        selectedWellInfo.value = createAquiferWellPresentation(well);
+        selectedLineInfo.value = null;
+        setPopupPosition(movement.position, 340, 390);
+        return;
+      }
+    }
+
+    if (pickedEntity?.polyline) {
+      const entity = pickedEntity;
 
       // 计算测线长度和坐标信息
       const positions = entity.polyline.positions.getValue(Cesium.JulianDate.now());
@@ -683,16 +775,17 @@ function bindClickEvent() {
         startPoint: startPointStr,
         endPoint: endPointStr
       };
+      selectedWellInfo.value = null;
 
       // 设置弹窗位置
-      popupStyle.left = `${movement.position.x + 15}px`;
-      popupStyle.top = `${movement.position.y + 15}px`;
+      setPopupPosition(movement.position, 280, 220);
 
       // 高亮显示选中的测线（可选：改变颜色或宽度）
       // ...
     } else {
       // 点击空白处关闭弹窗
       selectedLineInfo.value = null;
+      selectedWellInfo.value = null;
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 }
@@ -700,6 +793,10 @@ function bindClickEvent() {
 // 关闭弹窗
 function closeLinePopup() {
   selectedLineInfo.value = null;
+}
+
+function closeWellPopup() {
+  selectedWellInfo.value = null;
 }
 
 // 跳转到地下场景
@@ -724,11 +821,7 @@ function flyHome() {
 
   clearCurrentSceneDataSources();
 
-  // 销毁事件处理器
-  if (handler) {
-    handler.destroy();
-    handler = null;
-  }
+  clearSceneClickHandler();
 
   selectedLineInfo.value = null;
 }
@@ -815,11 +908,7 @@ onBeforeUnmount(() => {
 
   clearCurrentSceneDataSources();
 
-  // 销毁事件处理器
-  if (handler) {
-    handler.destroy();
-    handler = null;
-  }
+  clearSceneClickHandler();
 
   // 恢复原始样式
   const appContainer = document.getElementById("app-container");
@@ -1049,7 +1138,7 @@ onBeforeUnmount(() => {
   display: none !important;
 }
 
-.line-info-popup {
+.spatial-info-popup {
   position: absolute;
   z-index: 200;
   background: rgba(16, 29, 41, 0.9);
@@ -1057,9 +1146,16 @@ onBeforeUnmount(() => {
   border-radius: 4px;
   color: #fff;
   min-width: 250px;
+  max-height: calc(100vh - 24px);
   box-shadow: 0 0 15px rgba(0, 216, 255, 0.4);
   backdrop-filter: blur(4px);
   pointer-events: auto;
+  overflow: hidden;
+}
+
+.well-info-popup {
+  width: 328px;
+  max-width: calc(100vw - 24px);
 }
 
 .popup-header {
@@ -1071,10 +1167,30 @@ onBeforeUnmount(() => {
   background: rgba(0, 216, 255, 0.1);
 }
 
+.well-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .popup-header h3 {
   margin: 0;
   font-size: 14px;
   color: #00d8ff;
+}
+
+.well-status {
+  padding: 2px 6px;
+  color: #9bc8dc;
+  font-size: 10px;
+  line-height: 1.4;
+  border: 1px solid rgba(0, 216, 255, 0.45);
+  border-radius: 10px;
+}
+
+.well-status.rich {
+  color: #65f6c5;
+  border-color: rgba(101, 246, 197, 0.65);
 }
 
 .close-btn {
@@ -1094,6 +1210,8 @@ onBeforeUnmount(() => {
 .popup-content {
   padding: 12px;
   font-size: 13px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
 }
 
 .info-item {
@@ -1115,6 +1233,46 @@ onBeforeUnmount(() => {
 .info-item .value {
   color: #fff;
   font-family: monospace;
+}
+
+.well-info-popup .info-item .label {
+  width: 78px;
+}
+
+.coordinate-value {
+  line-height: 1.65;
+}
+
+.resource-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0, 216, 255, 0.22);
+}
+
+.resource-title {
+  margin-bottom: 8px;
+  color: #9bc8dc;
+  font-size: 12px;
+}
+
+.resource-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.resource-chip {
+  padding: 3px 7px;
+  color: #65f6c5;
+  font-size: 11px;
+  border: 1px solid rgba(101, 246, 197, 0.45);
+  border-radius: 3px;
+  background: rgba(101, 246, 197, 0.08);
+}
+
+.resource-empty {
+  color: #7794a3;
+  font-size: 12px;
 }
 
 @media screen and (max-width: 768px) {
