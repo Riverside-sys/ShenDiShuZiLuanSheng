@@ -120,16 +120,34 @@
           </div>
         </div>
       </div>
-      <div v-if="selectedWellInfo.hasInteractiveResearchData" class="popup-footer">
+      <div
+        v-if="selectedWellInfo.hasInteractiveResearchData || selectedWellInfo.scannedDocument"
+        class="popup-footer"
+      >
         <button
+          v-if="selectedWellInfo.hasInteractiveResearchData"
           type="button"
           class="research-open-btn"
           @click="openWellResearchPanel(selectedWellInfo.id)"
         >
           查看真实测井 / 岩性资料
         </button>
+        <button
+          v-if="selectedWellInfo.scannedDocument"
+          type="button"
+          class="research-open-btn research-open-btn--secondary"
+          @click="openWellDocumentPreview(selectedWellInfo.scannedDocument)"
+        >
+          查看原始剖面图
+        </button>
       </div>
     </div>
+
+    <AquiferDocumentPreview
+      v-if="selectedWellDocument"
+      :document="selectedWellDocument"
+      @close="closeWellDocumentPreview"
+    />
   </div>
 </template>
 
@@ -147,6 +165,9 @@ import { calculatePopupPosition, clampPopupPosition } from "./utils/popupPositio
 
 const AquiferWellResearchPanel = defineAsyncComponent(
   () => import("./components/AquiferWellResearchPanel.vue")
+);
+const AquiferDocumentPreview = defineAsyncComponent(
+  () => import("./components/AquiferDocumentPreview.vue")
 );
 
 // 保存 Viewer 实例
@@ -175,6 +196,7 @@ const wellsWithCoordinatesOnly =
 const selectedLineInfo = ref(null);
 const selectedWellInfo = ref(null);
 const researchPanelWellId = ref(null);
+const selectedWellDocument = ref(null);
 const popupStyle = reactive({
   left: '0px',
   top: '0px'
@@ -425,6 +447,7 @@ function clearCurrentSceneDataSources() {
   selectedLineInfo.value = null;
   selectedWellInfo.value = null;
   researchPanelWellId.value = null;
+  selectedWellDocument.value = null;
 }
 
 // 根据是否具备研究资料设置井点和标签样式
@@ -841,6 +864,7 @@ function bindClickEvent() {
       const well = findAquiferWellById(wellId);
       if (well) {
         researchPanelWellId.value = null;
+  selectedWellDocument.value = null;
         selectedWellInfo.value = createAquiferWellPresentation(well);
         selectedLineInfo.value = null;
         setPopupPosition(movement.position, 340, 390);
@@ -880,6 +904,7 @@ function bindClickEvent() {
       };
       selectedWellInfo.value = null;
       researchPanelWellId.value = null;
+  selectedWellDocument.value = null;
 
       // 设置弹窗位置
       setPopupPosition(movement.position, 280, 220);
@@ -891,6 +916,7 @@ function bindClickEvent() {
       selectedLineInfo.value = null;
       selectedWellInfo.value = null;
       researchPanelWellId.value = null;
+  selectedWellDocument.value = null;
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 }
@@ -911,6 +937,14 @@ function openWellResearchPanel(wellId) {
 
 function closeWellResearchPanel() {
   researchPanelWellId.value = null;
+}
+
+function openWellDocumentPreview(document) {
+  selectedWellDocument.value = document;
+}
+
+function closeWellDocumentPreview() {
+  selectedWellDocument.value = null;
 }
 
 // 跳转到地下场景
@@ -1348,6 +1382,9 @@ onBeforeUnmount(() => {
 }
 
 .popup-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   flex-shrink: 0;
   padding: 10px 12px 12px;
   border-top: 1px solid rgba(0, 216, 255, 0.22);
@@ -1431,6 +1468,18 @@ onBeforeUnmount(() => {
 .research-open-btn:hover {
   background: #8affd9;
   box-shadow: 0 0 12px rgba(101, 246, 197, 0.3);
+}
+
+.research-open-btn--secondary {
+  color: #dff7ff;
+  background: transparent;
+  border: 1px solid rgba(38, 217, 255, 0.55);
+}
+
+.research-open-btn--secondary:hover {
+  color: #ffffff;
+  background: rgba(38, 217, 255, 0.12);
+  box-shadow: 0 0 12px rgba(38, 217, 255, 0.2);
 }
 
 @media screen and (max-width: 768px) {

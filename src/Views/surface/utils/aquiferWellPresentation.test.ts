@@ -33,6 +33,7 @@ test("格式化井位坐标、元数据和资料名称", () => {
         resourceLabels: ["结构化测井数据", "Grapher 工程"],
         hasResearchData: true,
         hasInteractiveResearchData: true,
+        scannedDocument: undefined,
     });
 });
 
@@ -55,4 +56,21 @@ test("缺失元数据和资料时给出明确占位信息", () => {
     assert.deepEqual(presentation.resourceLabels, []);
     assert.equal(presentation.hasResearchData, false);
     assert.equal(presentation.hasInteractiveResearchData, false);
+    assert.equal(presentation.scannedDocument, undefined);
+});
+
+test("洋3井附带可预览的原始剖面扫描图", () => {
+    const yang3: AquiferWell = {
+        ...wellWithResearchData,
+        id: "洋3",
+        name: "洋3",
+        resources: ["structured-log", "scanned-document"],
+    };
+
+    const presentation = createAquiferWellPresentation(yang3);
+    assert.equal(presentation.scannedDocument?.wellId, "洋3");
+    assert.equal(
+        presentation.scannedDocument?.url,
+        "/aquifer/documents/yang3-section.jpg",
+    );
 });

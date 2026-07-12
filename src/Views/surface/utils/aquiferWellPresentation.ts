@@ -2,6 +2,10 @@ import type {
     AquiferWell,
     AquiferWellResourceType,
 } from "../../../data/aquifer/types";
+import {
+    getAquiferWellDocument,
+    type AquiferWellDocument,
+} from "../../../data/aquifer/documents/index.ts";
 
 const RESOURCE_LABELS: Record<AquiferWellResourceType, string> = {
     "structured-log": "结构化测井数据",
@@ -24,6 +28,7 @@ export interface AquiferWellPresentation {
     readonly resourceLabels: readonly string[];
     readonly hasResearchData: boolean;
     readonly hasInteractiveResearchData: boolean;
+    readonly scannedDocument?: AquiferWellDocument;
 }
 
 export const createAquiferWellPresentation = (
@@ -43,4 +48,5 @@ export const createAquiferWellPresentation = (
     hasInteractiveResearchData: well.resources.some(
         (resource) => resource === "structured-log" || resource === "stratigraphy",
     ),
+    scannedDocument: getAquiferWellDocument(well.id),
 });

@@ -37,3 +37,10 @@ export type {
     Su95StratigraphyLayer,
     Su95StratigraphySummary,
 } from "./stratigraphy";
+
+export {
+    AQUIFER_WELL_DOCUMENTS,
+    getAquiferWellDocument,
+} from "./documents";
+
+export type { AquiferWellDocument } from "./documents";
