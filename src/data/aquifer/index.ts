@@ -44,3 +44,16 @@ export {
 } from "./documents";
 
 export type { AquiferWellDocument } from "./documents";
+
+export {
+    AQUIFER_WELL_SCENE_GEOMETRY,
+    AQUIFER_WELL_SCENE_SUMMARY,
+    buildAquiferWellSceneGeometry,
+} from "./scene3d";
+
+export type {
+    AquiferDepthEnvelope,
+    AquiferWellDepthStick,
+    AquiferWellSceneGeometry,
+    AquiferWellSceneSummary,
+} from "./scene3d";

@@ -43,15 +43,31 @@
     <div class="layer-controls">
       <button
         class="layer-btn"
+        :class="{ active: cesiumContentMode === 'wellNetwork' }"
+        @click="switchCesiumContentMode('wellNetwork')"
+        :disabled="isLoading || isModelMode"
+      >
+        井网示意三维
+      </button>
+      <button
+        class="layer-btn"
+        :class="{ active: cesiumContentMode === 'demoLayers' }"
+        @click="switchCesiumContentMode('demoLayers')"
+        :disabled="isLoading || isModelMode"
+      >
+        演示地层块
+      </button>
+      <button
+        class="layer-btn"
         @click="expandLayers"
-        :disabled="isExpanded || isLoading || isModelMode"
+        :disabled="cesiumContentMode !== 'demoLayers' || isExpanded || isLoading || isModelMode"
       >
         展开地层
       </button>
       <button
         class="layer-btn"
         @click="closeLayers"
-        :disabled="!isExpanded || isLoading || isModelMode"
+        :disabled="cesiumContentMode !== 'demoLayers' || !isExpanded || isLoading || isModelMode"
       >
         关闭地层
       </button>
@@ -59,14 +75,18 @@
         class="layer-btn"
         :class="{ active: isPerspectiveMode }"
         @click="togglePerspectiveMode"
-        :disabled="isModelMode"
+        :disabled="cesiumContentMode !== 'demoLayers' || isModelMode"
       >
         {{ isPerspectiveMode ? "取消透视" : "透视模式" }}
       </button>
-      <button class="layer-btn" @click="toggleLayerSelector" :disabled="isModelMode">
+      <button
+        class="layer-btn"
+        @click="toggleLayerSelector"
+        :disabled="cesiumContentMode !== 'demoLayers' || isModelMode"
+      >
         选择地层
       </button>
-      <button class="layer-btn" @click="handleResetView" :disabled="isModelMode">
+      <button class="layer-btn" @click="handleResetView" :disabled="isLoading || isModelMode">
         重置视图
       </button>
     </div>
@@ -271,6 +291,13 @@ import {
   aquiferLayerGlbUrl,
 } from "./data"
 import { layerModelUrls, layerNames as geoLayerNames } from "./data/GeologicalStratification"
+import { AQUIFER_WELL_SCENE_GEOMETRY } from "@/data/aquifer/scene3d"
+import {
+  clearAquiferWellSceneEntities,
+  flyToAquiferWellScene,
+  loadAquiferWellSceneEntities,
+  type AquiferWellSceneEntities,
+} from "./utils/aquiferWellScene"
 
 interface CameraPose {
   position: { x: number; y: number; z: number };
@@ -326,6 +353,9 @@ const selectedLayerInfo = ref<Record<string, string | number>>({});
 const selectedLayerId = ref<number | null>(null);
 
 const isModelMode = ref(false);
+/** Cesium 默认展示井网示意三维；演示地层块仍可切换查看。 */
+const cesiumContentMode = ref<"wellNetwork" | "demoLayers">("wellNetwork");
+const wellSceneGeometry = AQUIFER_WELL_SCENE_GEOMETRY;
 const activeModelBtn = ref<'vp' | 'aquifer' | null>(null);
 const modelTagVisible = ref(false);
 const modelTagPos = ref({ x: 0, y: 0 });
@@ -369,6 +399,7 @@ let currentThreeModel: THREE.Object3D | null = null;
 
 let allLayerEntities: Entity[] = [];
 let currentSingleEntity: Entity | null = null;
+let wellSceneEntities: AquiferWellSceneEntities | null = null;
 
 const BASE_LNG = 117.22089726144343;
 const BASE_LAT = 31.833569328835598;
@@ -447,6 +478,39 @@ async function loadAllLayers() {
   }
 }
 
+async function loadWellNetworkScene() {
+  if (!viewer || isLoading.value) return;
+  isLoading.value = true;
+
+  try {
+    clearAllEntities();
+    wellSceneEntities = loadAquiferWellSceneEntities(viewer, wellSceneGeometry);
+    viewer.trackedEntity = undefined as unknown as Entity;
+    await flyToAquiferWellScene(viewer, wellSceneGeometry);
+  } catch (error) {
+    console.error("加载井网示意三维失败:", error);
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+async function switchCesiumContentMode(mode: "wellNetwork" | "demoLayers") {
+  if (!viewer || isLoading.value || cesiumContentMode.value === mode) return;
+  cesiumContentMode.value = mode;
+  showLayerInfo.value = false;
+  showLayerSelector.value = false;
+  isExpanded.value = false;
+  isPerspectiveMode.value = false;
+  selectedSingleLayer.value = null;
+
+  if (mode === "wellNetwork") {
+    await loadWellNetworkScene();
+  } else {
+    await loadAllLayers();
+  }
+  viewer.scene.requestRender();
+}
+
 function clearAllEntities() {
   if (!viewer) return;
   allLayerEntities.forEach((entity) => {
@@ -460,6 +524,9 @@ function clearAllEntities() {
     viewer.entities.remove(currentSingleEntity);
     currentSingleEntity = null;
   }
+
+  clearAquiferWellSceneEntities(viewer, wellSceneEntities);
+  wellSceneEntities = null;
 }
 
 function expandLayers() {
@@ -616,7 +683,11 @@ const initCesium = async () => {
   viewer.imageryLayers.removeAll();
 
   try {
-    await loadAllLayers();
+    if (cesiumContentMode.value === "wellNetwork") {
+      await loadWellNetworkScene();
+    } else {
+      await loadAllLayers();
+    }
 
     viewer.screenSpaceEventHandler.setInputAction((movement: any) => {
       if (!viewer) return;
@@ -658,7 +729,11 @@ const handleResetView = async () => {
 
   viewer.camera.lookAtTransform(Matrix4.IDENTITY);
 
-  await loadAllLayers();
+  if (cesiumContentMode.value === "wellNetwork") {
+    await loadWellNetworkScene();
+  } else {
+    await loadAllLayers();
+  }
 
   viewer.scene.requestRender();
 };
@@ -957,6 +1032,9 @@ onBeforeUnmount(() => {
     z-index: 20;
     display: flex;
     flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: min(1100px, calc(100% - 24px));
     gap: 10px;
   }
 
