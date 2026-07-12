@@ -7,9 +7,6 @@
         <span>{{ card.label }}</span>
       </div>
     </div>
-    <div class="summary-note">
-      左侧图表均来自吉大结构化资料；三维默认展示井网示意体（测井深度包络），演示地层块可切换查看。吉大 `.ovobj` 原储层网格尚未转换接入。
-    </div>
   </div>
 </template>
 
@@ -32,8 +29,8 @@ const model = createAquiferHudChartModel();
   overflow: hidden;
 }
 .chart-title {
-  padding: 8px 14px;
-  font-size: 13px;
+  padding: 9px 14px;
+  font-size: 14px;
   font-weight: 600;
   color: rgb(23, 199, 254);
   border-bottom: 1px solid rgba(23, 199, 254, 0.12);
@@ -44,35 +41,26 @@ const model = createAquiferHudChartModel();
 .summary-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  padding: 12px;
+  gap: 10px;
+  padding: 14px;
   flex: 1;
 }
 .summary-card {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 4px;
-  padding: 10px;
+  gap: 5px;
+  padding: 12px;
   background: rgba(23, 199, 254, 0.05);
   border-left: 2px solid rgba(23, 199, 254, 0.45);
 }
 .summary-card strong {
   color: #fff;
   font-family: "Courier New", monospace;
-  font-size: 16px;
+  font-size: 18px;
 }
 .summary-card span {
   color: rgba(160, 200, 220, 0.8);
-  font-size: 11px;
-}
-.summary-note {
-  margin: 0 12px 12px;
-  padding: 8px 9px;
-  color: #d9bd75;
-  font-size: 11px;
-  line-height: 1.5;
-  background: rgba(217, 189, 117, 0.07);
-  border: 1px solid rgba(217, 189, 117, 0.2);
+  font-size: 12px;
 }
 </style>

@@ -13,15 +13,21 @@
           class="vp-floating-tag"
           :style="{ left: modelTagPos.x + 'px', top: modelTagPos.y + 'px' }"
         >
-          <button class="vp-tag-btn" @click="onModelTagClick">{{ modelTagLabel }}</button>
+          <button class="vp-tag-btn" @click="onModelTagClick">
+            {{ modelTagLabel }}
+          </button>
         </div>
         <!-- 含水层信息面板 -->
         <Transition name="aquifer-panel">
           <div v-if="showAquiferInfoPanel" class="aquifer-info-overlay">
             <div class="aquifer-info-card">
               <div class="aquifer-info-header">
-                <span class="aquifer-info-title">含水层详细信息（模型示意）</span>
-                <button class="aquifer-info-close" @click="closeAquiferInfo">&times;</button>
+                <span class="aquifer-info-title"
+                  >含水层详细信息（模型示意）</span
+                >
+                <button class="aquifer-info-close" @click="closeAquiferInfo">
+                  &times;
+                </button>
               </div>
               <div class="aquifer-info-body">
                 <div
@@ -60,14 +66,24 @@
       <button
         class="layer-btn"
         @click="expandLayers"
-        :disabled="cesiumContentMode !== 'demoLayers' || isExpanded || isLoading || isModelMode"
+        :disabled="
+          cesiumContentMode !== 'demoLayers' ||
+          isExpanded ||
+          isLoading ||
+          isModelMode
+        "
       >
         展开地层
       </button>
       <button
         class="layer-btn"
         @click="closeLayers"
-        :disabled="cesiumContentMode !== 'demoLayers' || !isExpanded || isLoading || isModelMode"
+        :disabled="
+          cesiumContentMode !== 'demoLayers' ||
+          !isExpanded ||
+          isLoading ||
+          isModelMode
+        "
       >
         关闭地层
       </button>
@@ -86,7 +102,11 @@
       >
         选择地层
       </button>
-      <button class="layer-btn" @click="handleResetView" :disabled="isLoading || isModelMode">
+      <button
+        class="layer-btn"
+        @click="handleResetView"
+        :disabled="isLoading || isModelMode"
+      >
         重置视图
       </button>
     </div>
@@ -126,6 +146,186 @@
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- 井网示意：点井档案卡 -->
+    <div v-if="selectedWellCard" class="well-archive-popup">
+      <div class="well-archive-header">
+        <div class="well-archive-title">
+          <h3>{{ selectedWellCard.name }} 井位档案</h3>
+          <span
+            :class="[
+              'well-archive-status',
+              { rich: selectedWellCard.hasResearchData },
+            ]"
+          >
+            {{ selectedWellCard.hasResearchData ? "有研究资料" : "仅校正坐标" }}
+          </span>
+        </div>
+        <button type="button" class="close-btn" @click="closeWellArchivePopup">
+          ×
+        </button>
+      </div>
+      <div class="well-archive-body">
+        <div class="well-archive-row">
+          <span class="label">WGS84</span>
+          <span class="value"
+            >{{ selectedWellCard.longitude }},
+            {{ selectedWellCard.latitude }}</span
+          >
+        </div>
+        <div class="well-archive-row">
+          <span class="label">CGCS2000</span>
+          <span class="value"
+            >N {{ selectedWellCard.northing }} / E
+            {{ selectedWellCard.easting }}</span
+          >
+        </div>
+        <div class="well-archive-row">
+          <span class="label">井型</span>
+          <span class="value">{{ selectedWellCard.wellType }}</span>
+        </div>
+        <div class="well-archive-row">
+          <span class="label">完井日期</span>
+          <span class="value">{{ selectedWellCard.completionDate }}</span>
+        </div>
+        <div class="well-archive-row">
+          <span class="label">所属区域</span>
+          <span class="value">{{ selectedWellCard.region }}</span>
+        </div>
+        <div v-if="selectedWellCard.depthRange" class="well-archive-row">
+          <span class="label">测深范围</span>
+          <span class="value">{{ selectedWellCard.depthRange }}</span>
+        </div>
+        <div class="well-archive-resources">
+          <div class="resource-title">已收录资料</div>
+          <div
+            v-if="selectedWellCard.resourceLabels.length"
+            class="resource-list"
+          >
+            <span
+              v-for="resource in selectedWellCard.resourceLabels"
+              :key="resource"
+              class="resource-chip"
+            >
+              {{ resource }}
+            </span>
+          </div>
+          <div v-else class="resource-empty">当前仅收录校正坐标</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 井网示意：深度包络摘要 -->
+    <div v-if="showEnvelopeSummary" class="envelope-summary-popup">
+      <div class="well-archive-header">
+        <div class="well-archive-title">
+          <h3>深度包络摘要</h3>
+          <span class="well-archive-status">浅部起测井凸包示意</span>
+        </div>
+        <button type="button" class="close-btn" @click="closeEnvelopeSummary">
+          ×
+        </button>
+      </div>
+      <div class="well-archive-body">
+        <div class="well-archive-row">
+          <span class="label">控制井数</span>
+          <span class="value">{{ envelopeSummary.controlWellCount }} 口</span>
+        </div>
+        <div class="well-archive-row">
+          <span class="label">平均顶深</span>
+          <span class="value">{{ envelopeSummary.topDepth }} m</span>
+        </div>
+        <div class="well-archive-row">
+          <span class="label">平均底深</span>
+          <span class="value">{{ envelopeSummary.bottomDepth }} m</span>
+        </div>
+        <div class="well-archive-row">
+          <span class="label">凸包顶点数</span>
+          <span class="value">{{ envelopeSummary.vertexCount }}</span>
+        </div>
+        <div class="well-archive-row">
+          <span class="label">井网规模</span>
+          <span class="value">
+            {{ envelopeSummary.totalWells }} 口井 /
+            {{ envelopeSummary.wellsWithDepth }} 口有测深
+          </span>
+        </div>
+        <div class="envelope-control-wells">
+          <div class="resource-title">控制井</div>
+          <div class="resource-list">
+            <button
+              v-for="wellId in envelopeSummary.controlWellIds"
+              :key="wellId"
+              type="button"
+              class="resource-chip resource-chip-btn"
+              @click="selectWellFromList(wellId)"
+            >
+              {{ wellId }}
+            </button>
+          </div>
+        </div>
+        <p class="envelope-note">
+          半透明体为深度范围示意包络，不是含水层解释体。
+        </p>
+      </div>
+    </div>
+
+    <!-- 井网示意：井列表侧栏（默认折叠） -->
+    <div
+      v-if="cesiumContentMode === 'wellNetwork' && !isModelMode"
+      class="well-list-sidebar"
+      :class="{ collapsed: !wellListExpanded }"
+    >
+      <div class="well-list-header">
+        <h3 v-if="wellListExpanded">井列表</h3>
+        <span v-if="wellListExpanded" class="well-list-count">
+          {{ filteredWellList.length }} / {{ wellListItems.length }}
+        </span>
+        <button
+          type="button"
+          class="well-list-toggle"
+          :title="wellListExpanded ? '折叠井列表' : '展开井列表'"
+          @click="wellListExpanded = !wellListExpanded"
+        >
+          {{ wellListExpanded ? "收起" : "井列表" }}
+        </button>
+      </div>
+      <template v-if="wellListExpanded">
+        <div class="well-list-filters">
+          <button
+            v-for="filter in wellListFilters"
+            :key="filter.id"
+            type="button"
+            class="well-filter-btn"
+            :class="{ active: wellListFilter === filter.id }"
+            @click="wellListFilter = filter.id"
+          >
+            {{ filter.label }}
+          </button>
+        </div>
+        <div class="well-list-body">
+          <button
+            v-for="item in filteredWellList"
+            :key="item.wellId"
+            type="button"
+            class="well-list-item"
+            :class="{
+              active: selectedWellId === item.wellId,
+              hovered: hoveredWellId === item.wellId,
+              logged: item.hasDepthStick,
+            }"
+            @click="selectWellFromList(item.wellId)"
+            @mouseenter="setHoveredWell(item.wellId)"
+            @mouseleave="setHoveredWell(null)"
+          >
+            <span class="well-list-name">{{ item.wellId }}</span>
+            <span class="well-list-meta">
+              {{ item.hasDepthStick ? item.depthLabel : "仅坐标" }}
+            </span>
+          </button>
+        </div>
+      </template>
     </div>
 
     <!-- 左侧图表面板 -->
@@ -213,33 +413,57 @@
 
     <!-- 底部工具栏 -->
     <div class="bottom-bar">
-      <Footer @velocityModelShow="handleVelocityModelShow" @inversionShow="handleInversionShow" />
+      <Footer
+        @velocityModelShow="handleVelocityModelShow"
+        @inversionShow="handleInversionShow"
+      />
     </div>
 
     <!-- 图片弹窗 -->
     <Teleport to="body">
       <Transition name="fade">
-        <div v-if="analysisModalVisible && analysisModalType === 'image'" class="analysis-modal" @click.self="closeAnalysisModal">
+        <div
+          v-if="analysisModalVisible && analysisModalType === 'image'"
+          class="analysis-modal"
+          @click.self="closeAnalysisModal"
+        >
           <div class="analysis-modal-content">
             <div class="analysis-modal-header">
               <span class="analysis-modal-title">{{ analysisModalTitle }}</span>
-              <button class="analysis-modal-close" @click="closeAnalysisModal">×</button>
+              <button class="analysis-modal-close" @click="closeAnalysisModal">
+                ×
+              </button>
             </div>
             <div class="analysis-modal-body">
-              <img :src="analysisModalSrc" :alt="analysisModalTitle" class="analysis-modal-img" />
+              <img
+                :src="analysisModalSrc"
+                :alt="analysisModalTitle"
+                class="analysis-modal-img"
+              />
             </div>
           </div>
         </div>
       </Transition>
       <Transition name="fade">
-        <div v-if="analysisModalVisible && analysisModalType === 'video'" class="analysis-modal" @click.self="closeAnalysisModal">
+        <div
+          v-if="analysisModalVisible && analysisModalType === 'video'"
+          class="analysis-modal"
+          @click.self="closeAnalysisModal"
+        >
           <div class="analysis-modal-content analysis-modal-content--video">
             <div class="analysis-modal-header">
               <span class="analysis-modal-title">{{ analysisModalTitle }}</span>
-              <button class="analysis-modal-close" @click="closeAnalysisModal">×</button>
+              <button class="analysis-modal-close" @click="closeAnalysisModal">
+                ×
+              </button>
             </div>
             <div class="analysis-modal-body">
-              <video :src="analysisModalSrc" controls autoplay class="analysis-modal-video"></video>
+              <video
+                :src="analysisModalSrc"
+                controls
+                autoplay
+                class="analysis-modal-video"
+              ></video>
             </div>
           </div>
         </div>
@@ -254,8 +478,8 @@
   </div>
 </template>
 
-<script setup lang='ts'>
-import { ref, nextTick, onMounted, onBeforeUnmount } from "vue"
+<script setup lang="ts">
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from "vue";
 import {
   Viewer,
   Cartesian3,
@@ -267,17 +491,17 @@ import {
   Transforms,
   Math as CesiumMath,
   Entity,
-} from "cesium"
-import * as THREE from "three"
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
-import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js"
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
+} from "cesium";
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-import Footer from "./components/Footer/index.vue"
-import ImagePreviewPopup from "./components/Toolbar/ImagePreviewPopup.vue"
-import WaterLevelChart from "./components/Charts/WaterLevelChart.vue"
-import PorosityRadarChart from "./components/Charts/PorosityRadarChart.vue"
-import StratumBarChart from "./components/Charts/StratumBarChart.vue"
+import Footer from "./components/Footer/index.vue";
+import ImagePreviewPopup from "./components/Toolbar/ImagePreviewPopup.vue";
+import WaterLevelChart from "./components/Charts/WaterLevelChart.vue";
+import PorosityRadarChart from "./components/Charts/PorosityRadarChart.vue";
+import StratumBarChart from "./components/Charts/StratumBarChart.vue";
 import {
   aquiferInversionDemoGifUrl,
   aquiferSlicePreviewGifUrl,
@@ -289,15 +513,28 @@ import {
   aquiferFormationVideoUrl,
   vp20ModelUrl,
   aquiferLayerGlbUrl,
-} from "./data"
-import { layerModelUrls, layerNames as geoLayerNames } from "./data/GeologicalStratification"
-import { AQUIFER_WELL_SCENE_GEOMETRY } from "@/data/aquifer/scene3d"
+} from "./data";
 import {
+  layerModelUrls,
+  layerNames as geoLayerNames,
+} from "./data/GeologicalStratification";
+import {
+  AQUIFER_WELL_SCENE_GEOMETRY,
+  AQUIFER_WELL_SCENE_SUMMARY,
+} from "@/data/aquifer/scene3d";
+import { findAquiferWellById } from "@/data/aquifer/wells";
+import { createAquiferWellPresentation } from "@/Views/surface/utils/aquiferWellPresentation";
+import {
+  applyAquiferWellHighlight,
   clearAquiferWellSceneEntities,
+  flyToAquiferWell,
   flyToAquiferWellScene,
   loadAquiferWellSceneEntities,
+  resolveAquiferWellSceneHover,
   type AquiferWellSceneEntities,
-} from "./utils/aquiferWellScene"
+} from "./utils/aquiferWellScene";
+
+type WellListFilter = "all" | "logged" | "coordsOnly";
 
 interface CameraPose {
   position: { x: number; y: number; z: number };
@@ -307,23 +544,53 @@ interface CameraPose {
 interface AnalysisItem {
   label: string;
   src: string;
-  type: 'image' | 'video';
+  type: "image" | "video";
   color: string;
 }
 
 const analysisItems: AnalysisItem[] = [
-  { label: "含水层2D分析", src: aquifer2DAnalysisImageUrl, type: "image", color: "23, 199, 254" },
-  { label: "含水层3D分析", src: aquifer3DAnalysisImageUrl, type: "image", color: "0, 230, 180" },
-  { label: "速度模型", src: aquiferVelocityModelImageUrl, type: "image", color: "255, 170, 50" },
-  { label: "测井约束反演", src: aquiferWellConstrainedInversionImageUrl, type: "image", color: "160, 120, 255" },
-  { label: "全波形反演", src: aquiferFullWaveformInversionImageUrl, type: "image", color: "255, 100, 130" },
-  { label: "形成原理演示", src: aquiferFormationVideoUrl, type: "video", color: "80, 200, 120" },
+  {
+    label: "含水层2D分析",
+    src: aquifer2DAnalysisImageUrl,
+    type: "image",
+    color: "23, 199, 254",
+  },
+  {
+    label: "含水层3D分析",
+    src: aquifer3DAnalysisImageUrl,
+    type: "image",
+    color: "0, 230, 180",
+  },
+  {
+    label: "速度模型",
+    src: aquiferVelocityModelImageUrl,
+    type: "image",
+    color: "255, 170, 50",
+  },
+  {
+    label: "测井约束反演",
+    src: aquiferWellConstrainedInversionImageUrl,
+    type: "image",
+    color: "160, 120, 255",
+  },
+  {
+    label: "全波形反演",
+    src: aquiferFullWaveformInversionImageUrl,
+    type: "image",
+    color: "255, 100, 130",
+  },
+  {
+    label: "形成原理演示",
+    src: aquiferFormationVideoUrl,
+    type: "video",
+    color: "80, 200, 120",
+  },
 ];
 
 const analysisModalVisible = ref(false);
 const analysisModalTitle = ref("");
 const analysisModalSrc = ref("");
-const analysisModalType = ref<'image' | 'video'>("image");
+const analysisModalType = ref<"image" | "video">("image");
 
 function openAnalysis(item: AnalysisItem) {
   analysisModalTitle.value = item.label;
@@ -338,7 +605,9 @@ function closeAnalysisModal() {
 
 const cesiumContainer = ref<HTMLElement | null>(null);
 const threeContainer = ref<HTMLElement | null>(null);
-const imagePreviewPopupRef = ref<InstanceType<typeof ImagePreviewPopup> | null>(null);
+const imagePreviewPopupRef = ref<InstanceType<typeof ImagePreviewPopup> | null>(
+  null,
+);
 let viewer: Viewer | null = null;
 const showSubscene = ref(false);
 
@@ -356,10 +625,67 @@ const isModelMode = ref(false);
 /** Cesium 默认展示井网示意三维；演示地层块仍可切换查看。 */
 const cesiumContentMode = ref<"wellNetwork" | "demoLayers">("wellNetwork");
 const wellSceneGeometry = AQUIFER_WELL_SCENE_GEOMETRY;
-const activeModelBtn = ref<'vp' | 'aquifer' | null>(null);
+const selectedWellId = ref<string | null>(null);
+const hoveredWellId = ref<string | null>(null);
+const envelopeHovered = ref(false);
+const showEnvelopeSummary = ref(false);
+const wellListExpanded = ref(false);
+const wellListFilter = ref<WellListFilter>("all");
+const wellListFilters: ReadonlyArray<{ id: WellListFilter; label: string }> = [
+  { id: "all", label: "全部" },
+  { id: "logged", label: "有测深" },
+  { id: "coordsOnly", label: "仅坐标" },
+];
+const selectedWellCard = ref<null | {
+  name: string;
+  longitude: string;
+  latitude: string;
+  northing: string;
+  easting: string;
+  wellType: string;
+  completionDate: string;
+  region: string;
+  resourceLabels: readonly string[];
+  hasResearchData: boolean;
+  depthRange: string | null;
+}>(null);
+
+const wellListItems = wellSceneGeometry.surfaceMarkers.map((marker) => {
+  const stick = wellSceneGeometry.wellSticks.find(
+    (item) => item.wellId === marker.wellId,
+  );
+  return {
+    wellId: marker.wellId,
+    hasDepthStick: marker.hasDepthStick,
+    depthLabel: stick
+      ? `${stick.topDepth.toFixed(0)}–${stick.bottomDepth.toFixed(0)} m`
+      : "",
+  };
+});
+
+const filteredWellList = computed(() => {
+  if (wellListFilter.value === "logged") {
+    return wellListItems.filter((item) => item.hasDepthStick);
+  }
+  if (wellListFilter.value === "coordsOnly") {
+    return wellListItems.filter((item) => !item.hasDepthStick);
+  }
+  return wellListItems;
+});
+
+const envelopeSummary = {
+  controlWellCount: wellSceneGeometry.depthEnvelope.controlWellIds.length,
+  controlWellIds: wellSceneGeometry.depthEnvelope.controlWellIds,
+  topDepth: wellSceneGeometry.depthEnvelope.topDepth.toFixed(1),
+  bottomDepth: wellSceneGeometry.depthEnvelope.bottomDepth.toFixed(1),
+  vertexCount: AQUIFER_WELL_SCENE_SUMMARY.envelopeVertexCount,
+  totalWells: AQUIFER_WELL_SCENE_SUMMARY.totalWells,
+  wellsWithDepth: AQUIFER_WELL_SCENE_SUMMARY.wellsWithDepthSticks,
+};
+const activeModelBtn = ref<"vp" | "aquifer" | null>(null);
 const modelTagVisible = ref(false);
 const modelTagPos = ref({ x: 0, y: 0 });
-const modelTagLabel = ref('');
+const modelTagLabel = ref("");
 
 const showAquiferInfoPanel = ref(false);
 
@@ -374,18 +700,18 @@ const AQUIFER_INFO_CAMERA: CameraPose = {
 
 const aquiferInfoData = [
   // 模型示意参数：用于 Three.js 含水层模型信息卡，非苏北井网实测值。
-  { label: '含水层类型', value: '孔隙承压含水层' },
-  { label: '含水层厚度', value: '28.5 m' },
-  { label: '顶板埋深', value: '215.3 m' },
-  { label: '底板埋深', value: '243.8 m' },
-  { label: '水位标高', value: '-12.6 m' },
-  { label: '渗透系数', value: '3.72 m/d' },
-  { label: '储水系数', value: '2.15 × 10⁻⁴' },
-  { label: '孔隙度', value: '18.6 %' },
-  { label: '水温', value: '22.3 ℃' },
-  { label: '矿化度', value: '1.05 g/L' },
-  { label: '水质类型', value: 'HCO₃-Ca·Mg型' },
-  { label: '单位涌水量', value: '0.86 L/(s·m)' },
+  { label: "含水层类型", value: "孔隙承压含水层" },
+  { label: "含水层厚度", value: "28.5 m" },
+  { label: "顶板埋深", value: "215.3 m" },
+  { label: "底板埋深", value: "243.8 m" },
+  { label: "水位标高", value: "-12.6 m" },
+  { label: "渗透系数", value: "3.72 m/d" },
+  { label: "储水系数", value: "2.15 × 10⁻⁴" },
+  { label: "孔隙度", value: "18.6 %" },
+  { label: "水温", value: "22.3 ℃" },
+  { label: "矿化度", value: "1.05 g/L" },
+  { label: "水质类型", value: "HCO₃-Ca·Mg型" },
+  { label: "单位涌水量", value: "0.86 L/(s·m)" },
 ];
 
 let threeScene: THREE.Scene | null = null;
@@ -400,6 +726,12 @@ let currentThreeModel: THREE.Object3D | null = null;
 let allLayerEntities: Entity[] = [];
 let currentSingleEntity: Entity | null = null;
 let wellSceneEntities: AquiferWellSceneEntities | null = null;
+let lastWellHighlightState: {
+  hoveredWellId: string | null;
+  selectedWellId: string | null;
+} | null = null;
+let hoverClearTimer: ReturnType<typeof setTimeout> | null = null;
+const HOVER_CLEAR_DELAY_MS = 90;
 
 const BASE_LNG = 117.22089726144343;
 const BASE_LAT = 31.833569328835598;
@@ -425,7 +757,10 @@ function generateLayerInfo(layerId: number) {
   };
 }
 
-async function loadLayerModel(index: number, baseHeight = BASE_HEIGHT): Promise<Entity> {
+async function loadLayerModel(
+  index: number,
+  baseHeight = BASE_HEIGHT,
+): Promise<Entity> {
   if (!viewer) throw new Error("Viewer not initialized");
 
   const url = layerModelUrls[index];
@@ -484,7 +819,9 @@ async function loadWellNetworkScene() {
 
   try {
     clearAllEntities();
+    lastWellHighlightState = null;
     wellSceneEntities = loadAquiferWellSceneEntities(viewer, wellSceneGeometry);
+    syncWellHighlight();
     viewer.trackedEntity = undefined as unknown as Entity;
     await flyToAquiferWellScene(viewer, wellSceneGeometry);
   } catch (error) {
@@ -502,12 +839,132 @@ async function switchCesiumContentMode(mode: "wellNetwork" | "demoLayers") {
   isExpanded.value = false;
   isPerspectiveMode.value = false;
   selectedSingleLayer.value = null;
+  closeWellArchivePopup();
+  closeEnvelopeSummary();
+  clearWellInteractionState();
+  viewer.scene.canvas.style.cursor = "";
 
   if (mode === "wellNetwork") {
     await loadWellNetworkScene();
   } else {
     await loadAllLayers();
   }
+  viewer.scene.requestRender();
+}
+
+function syncWellHighlight() {
+  if (!wellSceneEntities) return;
+  const nextState = {
+    hoveredWellId: hoveredWellId.value,
+    selectedWellId: selectedWellId.value,
+  };
+  applyAquiferWellHighlight(
+    wellSceneEntities,
+    wellSceneGeometry,
+    nextState,
+    lastWellHighlightState,
+  );
+  lastWellHighlightState = nextState;
+  viewer?.scene.requestRender();
+}
+
+function setHoveredWell(wellId: string | null) {
+  if (hoveredWellId.value === wellId) return;
+  hoveredWellId.value = wellId;
+  syncWellHighlight();
+}
+
+function clearHoverClearTimer() {
+  if (hoverClearTimer !== null) {
+    clearTimeout(hoverClearTimer);
+    hoverClearTimer = null;
+  }
+}
+
+function applySceneHover(
+  wellId: string | null,
+  onEnvelope: boolean,
+  canvas: HTMLCanvasElement,
+) {
+  if (wellId || onEnvelope) {
+    clearHoverClearTimer();
+    setHoveredWell(wellId);
+    envelopeHovered.value = onEnvelope && !wellId;
+    canvas.style.cursor = "pointer";
+    return;
+  }
+
+  // 半透明包络内部 pick 会短暂丢命中；延迟清空避免高频闪烁。
+  if (hoverClearTimer !== null) return;
+  hoverClearTimer = setTimeout(() => {
+    hoverClearTimer = null;
+    setHoveredWell(null);
+    envelopeHovered.value = false;
+    canvas.style.cursor = "";
+  }, HOVER_CLEAR_DELAY_MS);
+}
+
+function clearWellInteractionState() {
+  clearHoverClearTimer();
+  selectedWellId.value = null;
+  hoveredWellId.value = null;
+  envelopeHovered.value = false;
+  lastWellHighlightState = null;
+  if (wellSceneEntities) {
+    syncWellHighlight();
+  }
+}
+
+function openWellArchivePopup(wellId: string) {
+  const well = findAquiferWellById(wellId);
+  if (!well) return;
+
+  const presentation = createAquiferWellPresentation(well);
+  const stick = wellSceneGeometry.wellSticks.find(
+    (item) => item.wellId === wellId,
+  );
+
+  showEnvelopeSummary.value = false;
+  selectedWellId.value = wellId;
+  selectedWellCard.value = {
+    name: presentation.name,
+    longitude: presentation.longitude,
+    latitude: presentation.latitude,
+    northing: presentation.northing,
+    easting: presentation.easting,
+    wellType: presentation.wellType,
+    completionDate: presentation.completionDate,
+    region: presentation.region,
+    resourceLabels: presentation.resourceLabels,
+    hasResearchData: presentation.hasResearchData,
+    depthRange: stick
+      ? `${stick.topDepth.toFixed(0)} – ${stick.bottomDepth.toFixed(0)} m（测深）`
+      : null,
+  };
+  syncWellHighlight();
+}
+
+function closeWellArchivePopup() {
+  selectedWellCard.value = null;
+  selectedWellId.value = null;
+  syncWellHighlight();
+}
+
+function openEnvelopeSummary() {
+  selectedWellCard.value = null;
+  selectedWellId.value = null;
+  showEnvelopeSummary.value = true;
+  syncWellHighlight();
+}
+
+function closeEnvelopeSummary() {
+  showEnvelopeSummary.value = false;
+}
+
+async function selectWellFromList(wellId: string) {
+  if (!viewer) return;
+  openWellArchivePopup(wellId);
+  await flyToAquiferWell(viewer, wellId, wellSceneGeometry);
   viewer.scene.requestRender();
 }
 
@@ -536,7 +993,11 @@ function expandLayers() {
   allLayerEntities.forEach((entity, index) => {
     if (entity && entity.position) {
       const expandedHeight = BASE_HEIGHT + index * LAYER_GAP_EXPANDED;
-      entity.position = Cartesian3.fromDegrees(BASE_LNG, BASE_LAT, expandedHeight) as any;
+      entity.position = Cartesian3.fromDegrees(
+        BASE_LNG,
+        BASE_LAT,
+        expandedHeight,
+      ) as any;
     }
   });
 }
@@ -548,7 +1009,11 @@ function closeLayers() {
   allLayerEntities.forEach((entity, index) => {
     if (entity && entity.position) {
       const closedHeight = BASE_HEIGHT + index * LAYER_GAP_DEFAULT;
-      entity.position = Cartesian3.fromDegrees(BASE_LNG, BASE_LAT, closedHeight) as any;
+      entity.position = Cartesian3.fromDegrees(
+        BASE_LNG,
+        BASE_LAT,
+        closedHeight,
+      ) as any;
     }
   });
 }
@@ -665,8 +1130,8 @@ const initCesium = async () => {
     contextOptions: {
       webgl: {
         alpha: true,
-      }
-    }
+      },
+    },
   });
 
   (viewer.cesiumWidget.creditContainer as HTMLElement).style.display = "none";
@@ -692,9 +1157,30 @@ const initCesium = async () => {
     viewer.screenSpaceEventHandler.setInputAction((movement: any) => {
       if (!viewer) return;
       const pickedFeature = viewer.scene.pick(movement.position);
+
+      if (cesiumContentMode.value === "wellNetwork") {
+        const picks = viewer.scene.drillPick(movement.position, 16) as Array<{
+          id?: unknown;
+        }>;
+        const hover = resolveAquiferWellSceneHover(
+          picks.length > 0 ? picks : [pickedFeature],
+        );
+        if (hover.wellId) {
+          openWellArchivePopup(hover.wellId);
+          return;
+        }
+        if (hover.onEnvelope) {
+          openEnvelopeSummary();
+          return;
+        }
+        closeWellArchivePopup();
+        closeEnvelopeSummary();
+        return;
+      }
+
       if (pickedFeature && pickedFeature.id) {
         let layerIndex = allLayerEntities.findIndex(
-          (entity) => entity === pickedFeature.id
+          (entity) => entity === pickedFeature.id,
         );
         if (layerIndex === -1 && currentSingleEntity === pickedFeature.id) {
           layerIndex = selectedSingleLayer.value ?? -1;
@@ -705,14 +1191,29 @@ const initCesium = async () => {
       }
     }, ScreenSpaceEventType.LEFT_CLICK);
 
+    viewer.screenSpaceEventHandler.setInputAction((movement: any) => {
+      if (!viewer) return;
+      const canvas = viewer.scene.canvas;
+
+      if (cesiumContentMode.value !== "wellNetwork") {
+        canvas.style.cursor = "";
+        return;
+      }
+
+      const picks = viewer.scene.drillPick(movement.endPosition, 16) as Array<{
+        id?: unknown;
+      }>;
+      const hover = resolveAquiferWellSceneHover(picks);
+      applySceneHover(hover.wellId, hover.onEnvelope, canvas);
+    }, ScreenSpaceEventType.MOUSE_MOVE);
+
     viewer.camera.changed.addEventListener(() => {
       viewer?.scene.requestRender();
     });
-
   } catch (error) {
     console.error("加载失败:", error);
   }
-}
+};
 
 const handleResetView = async () => {
   if (!viewer) return;
@@ -726,6 +1227,9 @@ const handleResetView = async () => {
   selectedLayerId.value = null;
   showLayerInfo.value = false;
   showLayerSelector.value = false;
+  closeWellArchivePopup();
+  closeEnvelopeSummary();
+  clearWellInteractionState();
 
   viewer.camera.lookAtTransform(Matrix4.IDENTITY);
 
@@ -739,11 +1243,17 @@ const handleResetView = async () => {
 };
 
 const handleVelocityModelShow = () => {
-  imagePreviewPopupRef.value?.open(aquiferSlicePreviewGifUrl, '三维盖帽状水层速度模型');
+  imagePreviewPopupRef.value?.open(
+    aquiferSlicePreviewGifUrl,
+    "三维盖帽状水层速度模型",
+  );
 };
 
 const handleInversionShow = () => {
-  imagePreviewPopupRef.value?.open(aquiferInversionDemoGifUrl, '反演结果动态演示');
+  imagePreviewPopupRef.value?.open(
+    aquiferInversionDemoGifUrl,
+    "反演结果动态演示",
+  );
 };
 
 function initThreeScene() {
@@ -777,13 +1287,19 @@ function initThreeScene() {
   dirLight2.position.set(-5, 3, -5);
   threeScene.add(dirLight2);
 
-  threeRenderer.domElement.addEventListener('click', onThreeCanvasClick);
+  threeRenderer.domElement.addEventListener("click", onThreeCanvasClick);
 
   animateThree();
 }
 
 function onThreeCanvasClick(event: MouseEvent) {
-  if (!threeRenderer || !threeCamera || !currentThreeModel || !activeModelBtn.value) return;
+  if (
+    !threeRenderer ||
+    !threeCamera ||
+    !currentThreeModel ||
+    !activeModelBtn.value
+  )
+    return;
 
   const rect = threeRenderer.domElement.getBoundingClientRect();
   threeMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -793,8 +1309,12 @@ function onThreeCanvasClick(event: MouseEvent) {
   const intersects = threeRaycaster.intersectObject(currentThreeModel, true);
 
   if (intersects.length > 0) {
-    modelTagPos.value = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-    modelTagLabel.value = activeModelBtn.value === 'vp' ? '查看vp20' : '查看vp含水层';
+    modelTagPos.value = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+    modelTagLabel.value =
+      activeModelBtn.value === "vp" ? "查看vp20" : "查看vp含水层";
     modelTagVisible.value = true;
   } else {
     modelTagVisible.value = false;
@@ -803,14 +1323,14 @@ function onThreeCanvasClick(event: MouseEvent) {
 
 function onModelTagClick() {
   modelTagVisible.value = false;
-  if (activeModelBtn.value === 'vp') {
-    analysisModalTitle.value = 'VP20 三维分析';
+  if (activeModelBtn.value === "vp") {
+    analysisModalTitle.value = "VP20 三维分析";
     analysisModalSrc.value = aquifer3DAnalysisImageUrl;
   } else {
-    analysisModalTitle.value = 'VP含水层动态演示';
+    analysisModalTitle.value = "VP含水层动态演示";
     analysisModalSrc.value = aquiferInversionDemoGifUrl;
   }
-  analysisModalType.value = 'image';
+  analysisModalType.value = "image";
   analysisModalVisible.value = true;
 }
 
@@ -831,7 +1351,9 @@ function loadThreeGLB(url: string, cameraPose?: CameraPose) {
   }
 
   const dracoLoader = new DRACOLoader();
-  dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
+  dracoLoader.setDecoderPath(
+    "https://www.gstatic.com/draco/versioned/decoders/1.5.7/",
+  );
   const loader = new GLTFLoader();
   loader.setDRACOLoader(dracoLoader);
   loader.load(
@@ -847,15 +1369,27 @@ function loadThreeGLB(url: string, cameraPose?: CameraPose) {
       currentThreeModel = model;
 
       if (cameraPose) {
-        threeCamera!.position.set(cameraPose.position.x, cameraPose.position.y, cameraPose.position.z);
+        threeCamera!.position.set(
+          cameraPose.position.x,
+          cameraPose.position.y,
+          cameraPose.position.z,
+        );
         if (threeControls) {
-          threeControls.target.set(cameraPose.target.x, cameraPose.target.y, cameraPose.target.z);
+          threeControls.target.set(
+            cameraPose.target.x,
+            cameraPose.target.y,
+            cameraPose.target.z,
+          );
           threeControls.update();
         }
       } else {
         const maxDim = Math.max(size.x, size.y, size.z);
         const distance = maxDim * 1.8;
-        threeCamera!.position.set(distance * 0.6, distance * 0.5, distance * 0.8);
+        threeCamera!.position.set(
+          distance * 0.6,
+          distance * 0.5,
+          distance * 0.8,
+        );
         threeCamera!.lookAt(0, 0, 0);
         if (threeControls) {
           threeControls.target.set(0, 0, 0);
@@ -866,14 +1400,14 @@ function loadThreeGLB(url: string, cameraPose?: CameraPose) {
     undefined,
     (error) => {
       console.error("加载GLB模型失败:", error);
-    }
+    },
   );
 }
 
 async function loadVpModel() {
   modelTagVisible.value = false;
   isModelMode.value = true;
-  activeModelBtn.value = 'vp';
+  activeModelBtn.value = "vp";
   await nextTick();
   initThreeScene();
   loadThreeGLB(vp20ModelUrl);
@@ -882,7 +1416,7 @@ async function loadVpModel() {
 async function loadAquiferModel() {
   modelTagVisible.value = false;
   isModelMode.value = true;
-  activeModelBtn.value = 'aquifer';
+  activeModelBtn.value = "aquifer";
   await nextTick();
   initThreeScene();
   loadThreeGLB(aquiferLayerGlbUrl, {
@@ -904,8 +1438,16 @@ function logCameraPose() {
   const pos = threeCamera.position;
   const target = threeControls.target;
   const info = {
-    position: { x: +pos.x.toFixed(4), y: +pos.y.toFixed(4), z: +pos.z.toFixed(4) },
-    target: { x: +target.x.toFixed(4), y: +target.y.toFixed(4), z: +target.z.toFixed(4) },
+    position: {
+      x: +pos.x.toFixed(4),
+      y: +pos.y.toFixed(4),
+      z: +pos.z.toFixed(4),
+    },
+    target: {
+      x: +target.x.toFixed(4),
+      y: +target.y.toFixed(4),
+      z: +target.z.toFixed(4),
+    },
     fov: threeCamera.fov,
     near: threeCamera.near,
     far: threeCamera.far,
@@ -916,12 +1458,23 @@ function logCameraPose() {
 
 function animateCameraTo(pose: CameraPose, duration = 800): Promise<void> {
   return new Promise((resolve) => {
-    if (!threeCamera || !threeControls) { resolve(); return; }
+    if (!threeCamera || !threeControls) {
+      resolve();
+      return;
+    }
 
     const startPos = threeCamera.position.clone();
     const startTarget = threeControls.target.clone();
-    const endPos = new THREE.Vector3(pose.position.x, pose.position.y, pose.position.z);
-    const endTarget = new THREE.Vector3(pose.target.x, pose.target.y, pose.target.z);
+    const endPos = new THREE.Vector3(
+      pose.position.x,
+      pose.position.y,
+      pose.position.z,
+    );
+    const endTarget = new THREE.Vector3(
+      pose.target.x,
+      pose.target.y,
+      pose.target.z,
+    );
 
     const startTime = performance.now();
     function step() {
@@ -944,7 +1497,7 @@ function animateCameraTo(pose: CameraPose, duration = 800): Promise<void> {
 }
 
 function viewAquiferInfo() {
-  if (activeModelBtn.value !== 'aquifer') return;
+  if (activeModelBtn.value !== "aquifer") return;
   animateCameraTo(AQUIFER_INFO_CAMERA, 900);
   showAquiferInfoPanel.value = true;
 }
@@ -954,7 +1507,7 @@ function closeAquiferInfo() {
 }
 
 function resetAquiferCamera() {
-  if (activeModelBtn.value !== 'aquifer') return;
+  if (activeModelBtn.value !== "aquifer") return;
   showAquiferInfoPanel.value = false;
   animateCameraTo(AQUIFER_INIT_CAMERA, 900);
 }
@@ -973,7 +1526,7 @@ function disposeThreeScene() {
     threeControls = null;
   }
   if (threeRenderer) {
-    threeRenderer.domElement.removeEventListener('click', onThreeCanvasClick);
+    threeRenderer.domElement.removeEventListener("click", onThreeCanvasClick);
     threeRenderer.dispose();
     if (threeRenderer.domElement.parentNode) {
       threeRenderer.domElement.parentNode.removeChild(threeRenderer.domElement);
@@ -986,15 +1539,16 @@ function disposeThreeScene() {
 
 onMounted(() => {
   initCesium();
-})
+});
 
 onBeforeUnmount(() => {
+  clearHoverClearTimer();
   disposeThreeScene();
   if (viewer) {
     viewer.destroy();
     viewer = null;
   }
-})
+});
 </script>
 
 <style scoped lang="scss">
@@ -1050,7 +1604,9 @@ onBeforeUnmount(() => {
     cursor: pointer;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
     outline: none;
-    transition: background 0.2s, color 0.2s;
+    transition:
+      background 0.2s,
+      color 0.2s;
 
     &:hover:not(:disabled) {
       background: #17c7fe;
@@ -1081,7 +1637,8 @@ onBeforeUnmount(() => {
     width: 280px;
     max-height: 400px;
     overflow-y: auto;
-    box-shadow: 0 4px 24px 0 rgba(23, 199, 254, 0.18),
+    box-shadow:
+      0 4px 24px 0 rgba(23, 199, 254, 0.18),
       0 1.5px 8px 0 rgba(0, 0, 0, 0.25);
     border: 1.5px solid #17c7fe;
     z-index: 30;
@@ -1143,7 +1700,8 @@ onBeforeUnmount(() => {
     border-radius: 14px;
     padding: 20px 18px 16px 18px;
     width: 260px;
-    box-shadow: 0 4px 24px 0 rgba(23, 199, 254, 0.18),
+    box-shadow:
+      0 4px 24px 0 rgba(23, 199, 254, 0.18),
       0 1.5px 8px 0 rgba(0, 0, 0, 0.25);
     border: 1.5px solid #17c7fe;
     z-index: 30;
@@ -1171,13 +1729,16 @@ onBeforeUnmount(() => {
       border-spacing: 0;
     }
 
-    th, td {
+    th,
+    td {
       padding: 10px 8px;
       text-align: left;
       border-bottom: 1px solid #22384a;
       font-size: 14px;
       color: #eaf6ff;
-      transition: background 0.2s, color 0.2s;
+      transition:
+        background 0.2s,
+        color 0.2s;
     }
 
     th {
@@ -1191,6 +1752,286 @@ onBeforeUnmount(() => {
       background: rgba(23, 199, 254, 0.08);
       color: #17c7fe;
     }
+  }
+
+  .well-archive-popup {
+    position: absolute;
+    top: 70px;
+    right: 290px;
+    z-index: 30;
+    width: 320px;
+    max-width: calc(100% - 40px);
+    color: #eaf6ff;
+    background: rgba(8, 20, 34, 0.94);
+    border: 1px solid rgba(38, 217, 255, 0.45);
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(4px);
+  }
+
+  .envelope-summary-popup {
+    position: absolute;
+    top: 70px;
+    right: 290px;
+    z-index: 30;
+    width: 340px;
+    max-width: calc(100% - 40px);
+    color: #eaf6ff;
+    background: rgba(8, 20, 34, 0.94);
+    border: 1px solid rgba(38, 217, 255, 0.45);
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(4px);
+  }
+
+  .envelope-control-wells {
+    margin-top: 10px;
+  }
+
+  .envelope-note {
+    margin: 12px 0 0;
+    color: #9ec4d4;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .resource-chip-btn {
+    cursor: pointer;
+    border: 1px solid rgba(101, 246, 197, 0.35);
+    background: rgba(101, 246, 197, 0.1);
+  }
+
+  .resource-chip-btn:hover {
+    border-color: rgba(101, 246, 197, 0.7);
+    background: rgba(101, 246, 197, 0.2);
+  }
+
+  .well-list-sidebar {
+    position: absolute;
+    left: 434px;
+    top: 70px;
+    bottom: 90px;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    width: 220px;
+    color: #eaf6ff;
+    background: rgba(8, 20, 34, 0.9);
+    border: 1px solid rgba(38, 217, 255, 0.35);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(4px);
+    overflow: hidden;
+    transition:
+      width 0.18s ease,
+      bottom 0.18s ease;
+  }
+
+  .well-list-sidebar.collapsed {
+    width: 76px;
+    bottom: auto;
+  }
+
+  .well-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 10px 8px;
+    border-bottom: 1px solid rgba(38, 217, 255, 0.16);
+  }
+
+  .well-list-sidebar.collapsed .well-list-header {
+    border-bottom: none;
+    justify-content: center;
+    padding: 8px;
+  }
+
+  .well-list-header h3 {
+    margin: 0;
+    color: #26d9ff;
+    font-size: 15px;
+  }
+
+  .well-list-count {
+    color: #9ec4d4;
+    font-size: 12px;
+    margin-right: auto;
+  }
+
+  .well-list-toggle {
+    flex-shrink: 0;
+    padding: 5px 10px;
+    color: #26d9ff;
+    font-size: 12px;
+    line-height: 1.2;
+    background: rgba(38, 217, 255, 0.1);
+    border: 1px solid rgba(38, 217, 255, 0.4);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .well-list-toggle:hover {
+    background: rgba(38, 217, 255, 0.2);
+  }
+
+  .well-list-filters {
+    display: flex;
+    gap: 6px;
+    padding: 10px 12px;
+  }
+
+  .well-filter-btn {
+    flex: 1;
+    padding: 5px 0;
+    color: #9ec4d4;
+    font-size: 12px;
+    background: rgba(158, 196, 212, 0.08);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .well-filter-btn.active,
+  .well-filter-btn:hover {
+    color: #26d9ff;
+    border-color: rgba(38, 217, 255, 0.45);
+    background: rgba(38, 217, 255, 0.12);
+  }
+
+  .well-list-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 8px 10px;
+  }
+
+  .well-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 4px;
+    padding: 8px 10px;
+    color: #d7ecf7;
+    text-align: left;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .well-list-item.logged .well-list-name {
+    color: #65f6c5;
+  }
+
+  .well-list-item:hover,
+  .well-list-item.hovered {
+    border-color: rgba(255, 229, 102, 0.45);
+    background: rgba(255, 229, 102, 0.08);
+  }
+
+  .well-list-item.active {
+    border-color: rgba(255, 179, 71, 0.55);
+    background: rgba(255, 179, 71, 0.12);
+  }
+
+  .well-list-name {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .well-list-meta {
+    color: #9ec4d4;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .well-archive-header {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 40px 12px 16px;
+    border-bottom: 1px solid rgba(38, 217, 255, 0.18);
+  }
+
+  .well-archive-title h3 {
+    margin: 0;
+    color: #26d9ff;
+    font-size: 16px;
+  }
+
+  .well-archive-status {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 2px 8px;
+    color: #9ec4d4;
+    font-size: 11px;
+    background: rgba(158, 196, 212, 0.12);
+    border-radius: 999px;
+  }
+
+  .well-archive-status.rich {
+    color: #65f6c5;
+    background: rgba(101, 246, 197, 0.12);
+  }
+
+  .well-archive-body {
+    padding: 12px 16px 16px;
+  }
+
+  .well-archive-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .well-archive-row .label {
+    flex: 0 0 72px;
+    color: #8bb3c4;
+  }
+
+  .well-archive-row .value {
+    flex: 1;
+    color: #fff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    word-break: break-all;
+  }
+
+  .well-archive-resources {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(38, 217, 255, 0.12);
+  }
+
+  .well-archive-resources .resource-title {
+    margin-bottom: 8px;
+    color: #8bb3c4;
+    font-size: 12px;
+  }
+
+  .well-archive-resources .resource-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .well-archive-resources .resource-chip {
+    padding: 3px 8px;
+    color: #dff7ff;
+    font-size: 11px;
+    background: rgba(38, 217, 255, 0.12);
+    border: 1px solid rgba(38, 217, 255, 0.28);
+    border-radius: 999px;
+  }
+
+  .well-archive-resources .resource-empty {
+    color: #7794a3;
+    font-size: 12px;
   }
 
   .close-btn {
@@ -1213,15 +2054,15 @@ onBeforeUnmount(() => {
   .left-charts {
     position: absolute;
     left: 0;
-    top: 56px;
-    bottom: 90px;
-    width: 380px;
+    top: 30px;
+    bottom: 78px;
+    width: 420px;
     z-index: 15;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-    gap: 14px;
-    padding: 14px 16px;
+    justify-content: stretch;
+    gap: 25px;
+    padding: 8px 12px;
     pointer-events: auto;
 
     &::-webkit-scrollbar {
@@ -1259,7 +2100,9 @@ onBeforeUnmount(() => {
     border: 1px solid rgba(0, 220, 200, 0.45);
     border-radius: 12px;
     backdrop-filter: blur(14px);
-    box-shadow: 0 4px 30px rgba(0, 220, 200, 0.15), 0 1px 8px rgba(0, 0, 0, 0.35);
+    box-shadow:
+      0 4px 30px rgba(0, 220, 200, 0.15),
+      0 1px 8px rgba(0, 0, 0, 0.35);
     overflow: hidden;
   }
 
@@ -1347,7 +2190,7 @@ onBeforeUnmount(() => {
     animation: tagFadeIn 0.18s ease-out;
 
     &::after {
-      content: '';
+      content: "";
       position: absolute;
       left: 50%;
       bottom: -6px;
@@ -1379,8 +2222,14 @@ onBeforeUnmount(() => {
   }
 
   @keyframes tagFadeIn {
-    from { opacity: 0; transform: translate(-50%, -110%); }
-    to { opacity: 1; transform: translate(-50%, -120%); }
+    from {
+      opacity: 0;
+      transform: translate(-50%, -110%);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -120%);
+    }
   }
 
   .right-panel {
@@ -1494,7 +2343,9 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(23, 199, 254, 0.35);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(23, 199, 254, 0.1);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.6),
+    0 0 30px rgba(23, 199, 254, 0.1);
   animation: modalZoomIn 0.25s ease-out;
   display: flex;
   flex-direction: column;
@@ -1569,11 +2420,15 @@ onBeforeUnmount(() => {
 }
 
 .aquifer-panel-enter-active {
-  transition: opacity 0.35s ease, transform 0.35s ease;
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
 }
 
 .aquifer-panel-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
 }
 
 .aquifer-panel-enter-from {

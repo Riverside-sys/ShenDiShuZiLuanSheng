@@ -123,8 +123,8 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 .chart-title {
-  padding: 8px 14px;
-  font-size: 13px;
+  padding: 9px 14px;
+  font-size: 14px;
   font-weight: 600;
   color: rgb(23, 199, 254);
   border-bottom: 1px solid rgba(23, 199, 254, 0.12);
@@ -135,6 +135,6 @@ onBeforeUnmount(() => {
 .chart-body {
   width: 100%;
   flex: 1;
-  min-height: 160px;
+  min-height: 190px;
 }
 </style>
