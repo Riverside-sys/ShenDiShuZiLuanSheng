@@ -49,7 +49,7 @@
 
     <!-- 测线信息弹窗 -->
     <div v-if="selectedLineInfo" class="spatial-info-popup line-info-popup" :style="popupStyle">
-      <div class="popup-header">
+      <div class="popup-header popup-drag-handle" @pointerdown="startPopupDrag">
         <h3>测线信息</h3>
         <button class="close-btn" @click="closeLinePopup">×</button>
       </div>
@@ -75,7 +75,7 @@
 
     <!-- 井位资料卡片 -->
     <div v-if="selectedWellInfo" class="spatial-info-popup well-info-popup" :style="popupStyle">
-      <div class="popup-header">
+      <div class="popup-header popup-drag-handle" @pointerdown="startPopupDrag">
         <div class="well-title">
           <h3>{{ selectedWellInfo.name }} 井位档案</h3>
           <span :class="['well-status', { rich: selectedWellInfo.hasResearchData }]">
@@ -84,41 +84,44 @@
         </div>
         <button class="close-btn" @click="closeWellPopup">×</button>
       </div>
-      <div class="popup-content">
-        <div class="info-item">
-          <span class="label">WGS84</span>
-          <span class="value">{{ selectedWellInfo.longitude }}, {{ selectedWellInfo.latitude }}</span>
-        </div>
-        <div class="info-item">
-          <span class="label">CGCS2000</span>
-          <span class="value coordinate-value">
-            N {{ selectedWellInfo.northing }}<br>
-            E {{ selectedWellInfo.easting }}
-          </span>
-        </div>
-        <div class="info-item">
-          <span class="label">井型</span>
-          <span class="value">{{ selectedWellInfo.wellType }}</span>
-        </div>
-        <div class="info-item">
-          <span class="label">完井日期</span>
-          <span class="value">{{ selectedWellInfo.completionDate }}</span>
-        </div>
-        <div class="info-item">
-          <span class="label">所属区域</span>
-          <span class="value">{{ selectedWellInfo.region }}</span>
-        </div>
-        <div class="resource-section">
-          <div class="resource-title">已收录资料</div>
-          <div v-if="selectedWellInfo.resourceLabels.length" class="resource-list">
-            <span v-for="resource in selectedWellInfo.resourceLabels" :key="resource" class="resource-chip">
-              {{ resource }}
+      <div class="popup-body">
+        <div class="popup-content">
+          <div class="info-item">
+            <span class="label">WGS84</span>
+            <span class="value">{{ selectedWellInfo.longitude }}, {{ selectedWellInfo.latitude }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">CGCS2000</span>
+            <span class="value coordinate-value">
+              N {{ selectedWellInfo.northing }}<br>
+              E {{ selectedWellInfo.easting }}
             </span>
           </div>
-          <div v-else class="resource-empty">当前仅收录校正坐标</div>
+          <div class="info-item">
+            <span class="label">井型</span>
+            <span class="value">{{ selectedWellInfo.wellType }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">完井日期</span>
+            <span class="value">{{ selectedWellInfo.completionDate }}</span>
+          </div>
+          <div class="info-item">
+            <span class="label">所属区域</span>
+            <span class="value">{{ selectedWellInfo.region }}</span>
+          </div>
+          <div class="resource-section">
+            <div class="resource-title">已收录资料</div>
+            <div v-if="selectedWellInfo.resourceLabels.length" class="resource-list">
+              <span v-for="resource in selectedWellInfo.resourceLabels" :key="resource" class="resource-chip">
+                {{ resource }}
+              </span>
+            </div>
+            <div v-else class="resource-empty">当前仅收录校正坐标</div>
+          </div>
         </div>
+      </div>
+      <div v-if="selectedWellInfo.hasInteractiveResearchData" class="popup-footer">
         <button
-          v-if="selectedWellInfo.hasInteractiveResearchData"
           type="button"
           class="research-open-btn"
           @click="openWellResearchPanel(selectedWellInfo.id)"
@@ -140,7 +143,7 @@ import { surfaceAquiferKmlUrl, surfaceMinesGeoJsonUrl } from "./data";
 import { createAquiferWellGeoJson } from "./utils/aquiferWells";
 import { createAquiferWellPresentation } from "./utils/aquiferWellPresentation";
 import { createLatestRequestGuard } from "./utils/latestRequest";
-import { calculatePopupPosition } from "./utils/popupPosition";
+import { calculatePopupPosition, clampPopupPosition } from "./utils/popupPosition";
 
 const AquiferWellResearchPanel = defineAsyncComponent(
   () => import("./components/AquiferWellResearchPanel.vue")
@@ -176,6 +179,7 @@ const popupStyle = reactive({
   left: '0px',
   top: '0px'
 });
+let popupDragState = null;
 
 // 存储所有添加的实体（用于清除）
 const highlightEntities = [];
@@ -707,19 +711,39 @@ function roamScenes() {
   camera.flyTo(firstOptions);
 }
 
-// 将弹窗限制在 Cesium 可视区域内
+function getPopupViewportSize() {
+  const container = document.querySelector(".surface-container");
+  if (!container) {
+    return {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    };
+  }
+
+  const rect = container.getBoundingClientRect();
+  return {
+    width: rect.width,
+    // 场景容器可能是 100vh，但实际会落到全局页头下方；
+    // 只取窗口内可见高度，避免弹窗底部被裁切后既滚不动也看不到按钮。
+    height: Math.max(120, Math.min(rect.height, window.innerHeight - rect.top)),
+  };
+}
+
+function applyPopupStylePosition(left, top) {
+  popupStyle.left = `${left}px`;
+  popupStyle.top = `${top}px`;
+}
+
+// 将弹窗限制在场景可见区域内
 function setPopupPosition(position, cardWidth, cardHeight) {
-  const canvas = viewer?.scene.canvas;
-  const viewportWidth = canvas?.clientWidth ?? window.innerWidth;
-  const viewportHeight = canvas?.clientHeight ?? window.innerHeight;
+  const viewport = getPopupViewportSize();
   const applyPosition = (width, height) => {
     const { left, top } = calculatePopupPosition(
       position,
-      { width: viewportWidth, height: viewportHeight },
+      viewport,
       { width, height }
     );
-    popupStyle.left = `${left}px`;
-    popupStyle.top = `${top}px`;
+    applyPopupStylePosition(left, top);
   };
 
   applyPosition(cardWidth, cardHeight);
@@ -729,6 +753,64 @@ function setPopupPosition(position, cardWidth, cardHeight) {
     const bounds = popup.getBoundingClientRect();
     applyPosition(bounds.width, bounds.height);
   });
+}
+
+function startPopupDrag(event) {
+  if (event.button !== 0) return;
+  if (event.target.closest(".close-btn")) return;
+
+  const popup = event.currentTarget.closest(".spatial-info-popup");
+  const container = document.querySelector(".surface-container");
+  if (!popup || !container) return;
+
+  const popupRect = popup.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+  popupDragState = {
+    pointerId: event.pointerId,
+    offsetX: event.clientX - popupRect.left,
+    offsetY: event.clientY - popupRect.top,
+    width: popupRect.width,
+    height: popupRect.height,
+    containerLeft: containerRect.left,
+    containerTop: containerRect.top,
+  };
+
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+  window.addEventListener("pointermove", onPopupDragMove);
+  window.addEventListener("pointerup", stopPopupDrag);
+  window.addEventListener("pointercancel", stopPopupDrag);
+  event.preventDefault();
+}
+
+function onPopupDragMove(event) {
+  if (!popupDragState || event.pointerId !== popupDragState.pointerId) return;
+
+  const viewport = getPopupViewportSize();
+  const nextLeft =
+    event.clientX - popupDragState.containerLeft - popupDragState.offsetX;
+  const nextTop =
+    event.clientY - popupDragState.containerTop - popupDragState.offsetY;
+  const { left, top } = clampPopupPosition(
+    { x: nextLeft, y: nextTop },
+    viewport,
+    { width: popupDragState.width, height: popupDragState.height }
+  );
+  applyPopupStylePosition(left, top);
+}
+
+function stopPopupDrag(event) {
+  if (
+    popupDragState &&
+    event &&
+    event.pointerId !== popupDragState.pointerId
+  ) {
+    return;
+  }
+
+  popupDragState = null;
+  window.removeEventListener("pointermove", onPopupDragMove);
+  window.removeEventListener("pointerup", stopPopupDrag);
+  window.removeEventListener("pointercancel", stopPopupDrag);
 }
 
 function clearSceneClickHandler() {
@@ -934,6 +1016,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   sceneLoadGuard.invalidate();
+  stopPopupDrag();
 
   // 清除高亮实体
   clearHighlightEntities();
@@ -968,9 +1051,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .surface-container {
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
+  width: 100%;
+  height: 100%;
   position: relative;
   overflow: hidden;
   background-color: #1a1a2e;
@@ -1173,12 +1255,14 @@ onBeforeUnmount(() => {
 .spatial-info-popup {
   position: absolute;
   z-index: 200;
+  display: flex;
+  flex-direction: column;
   background: rgba(16, 29, 41, 0.9);
   border: 1px solid #00d8ff;
   border-radius: 4px;
   color: #fff;
   min-width: 250px;
-  max-height: calc(100vh - 24px);
+  max-height: min(520px, calc(100% - 24px));
   box-shadow: 0 0 15px rgba(0, 216, 255, 0.4);
   backdrop-filter: blur(4px);
   pointer-events: auto;
@@ -1197,6 +1281,17 @@ onBeforeUnmount(() => {
   padding: 8px 12px;
   border-bottom: 1px solid rgba(0, 216, 255, 0.3);
   background: rgba(0, 216, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.popup-drag-handle {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.popup-drag-handle:active {
+  cursor: grabbing;
 }
 
 .well-title {
@@ -1239,11 +1334,23 @@ onBeforeUnmount(() => {
   color: #fff;
 }
 
+.popup-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .popup-content {
   padding: 12px;
   font-size: 13px;
-  max-height: calc(100vh - 80px);
-  overflow-y: auto;
+}
+
+.popup-footer {
+  flex-shrink: 0;
+  padding: 10px 12px 12px;
+  border-top: 1px solid rgba(0, 216, 255, 0.22);
+  background: rgba(4, 18, 28, 0.92);
 }
 
 .info-item {
@@ -1309,7 +1416,7 @@ onBeforeUnmount(() => {
 
 .research-open-btn {
   width: 100%;
-  margin-top: 12px;
+  margin-top: 0;
   padding: 7px 10px;
   color: #04151f;
   font-size: 12px;

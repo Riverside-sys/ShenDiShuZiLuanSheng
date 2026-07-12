@@ -28,3 +28,18 @@ export const calculatePopupPosition = (
         top: Math.max(margin, Math.min(anchor.y + offset, maxTop)),
     };
 };
+
+export const clampPopupPosition = (
+    position: Point,
+    viewport: Size,
+    card: Size,
+    margin = 12,
+): PopupPosition => {
+    const maxLeft = Math.max(margin, viewport.width - card.width - margin);
+    const maxTop = Math.max(margin, viewport.height - card.height - margin);
+
+    return {
+        left: Math.max(margin, Math.min(position.x, maxLeft)),
+        top: Math.max(margin, Math.min(position.y, maxTop)),
+    };
+};
