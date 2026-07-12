@@ -23,6 +23,7 @@ export interface AquiferWellPresentation {
     readonly region: string;
     readonly resourceLabels: readonly string[];
     readonly hasResearchData: boolean;
+    readonly hasInteractiveResearchData: boolean;
 }
 
 export const createAquiferWellPresentation = (
@@ -39,4 +40,7 @@ export const createAquiferWellPresentation = (
     region: well.region ?? "暂无记录",
     resourceLabels: well.resources.map((resource) => RESOURCE_LABELS[resource]),
     hasResearchData: well.resources.length > 0,
+    hasInteractiveResearchData: well.resources.some(
+        (resource) => resource === "structured-log" || resource === "stratigraphy",
+    ),
 });

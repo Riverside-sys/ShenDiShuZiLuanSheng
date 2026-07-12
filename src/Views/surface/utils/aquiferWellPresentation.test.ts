@@ -32,6 +32,7 @@ test("格式化井位坐标、元数据和资料名称", () => {
         region: "涟水",
         resourceLabels: ["结构化测井数据", "Grapher 工程"],
         hasResearchData: true,
+        hasInteractiveResearchData: true,
     });
 });
 
@@ -53,4 +54,5 @@ test("缺失元数据和资料时给出明确占位信息", () => {
     assert.equal(presentation.region, "暂无记录");
     assert.deepEqual(presentation.resourceLabels, []);
     assert.equal(presentation.hasResearchData, false);
+    assert.equal(presentation.hasInteractiveResearchData, false);
 });

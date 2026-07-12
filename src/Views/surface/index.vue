@@ -41,6 +41,12 @@
     <!-- Cesium 容器 -->
     <div id="cesiumContainer" class="viewer"></div>
 
+    <AquiferWellResearchPanel
+      v-if="researchPanelWellId"
+      :well-id="researchPanelWellId"
+      @close="closeWellResearchPanel"
+    />
+
     <!-- 测线信息弹窗 -->
     <div v-if="selectedLineInfo" class="spatial-info-popup line-info-popup" :style="popupStyle">
       <div class="popup-header">
@@ -111,22 +117,34 @@
           </div>
           <div v-else class="resource-empty">当前仅收录校正坐标</div>
         </div>
+        <button
+          v-if="selectedWellInfo.hasInteractiveResearchData"
+          type="button"
+          class="research-open-btn"
+          @click="openWellResearchPanel(selectedWellInfo.id)"
+        >
+          查看真实测井 / 岩性资料
+        </button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { nextTick, onMounted, ref, onBeforeUnmount, reactive } from "vue";
+import { defineAsyncComponent, nextTick, onMounted, ref, onBeforeUnmount, reactive } from "vue";
 import { useRouter } from "vue-router";
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
-import { AQUIFER_WELLS, findAquiferWellById } from "@/data/aquifer";
+import { AQUIFER_WELLS, findAquiferWellById } from "@/data/aquifer/wells";
 import { surfaceAquiferKmlUrl, surfaceMinesGeoJsonUrl } from "./data";
 import { createAquiferWellGeoJson } from "./utils/aquiferWells";
 import { createAquiferWellPresentation } from "./utils/aquiferWellPresentation";
 import { createLatestRequestGuard } from "./utils/latestRequest";
 import { calculatePopupPosition } from "./utils/popupPosition";
+
+const AquiferWellResearchPanel = defineAsyncComponent(
+  () => import("./components/AquiferWellResearchPanel.vue")
+);
 
 // 保存 Viewer 实例
 let viewer = null;
@@ -153,6 +171,7 @@ const wellsWithCoordinatesOnly =
 // 测线弹窗相关
 const selectedLineInfo = ref(null);
 const selectedWellInfo = ref(null);
+const researchPanelWellId = ref(null);
 const popupStyle = reactive({
   left: '0px',
   top: '0px'
@@ -401,6 +420,7 @@ function clearCurrentSceneDataSources() {
   wellsLayerReady.value = false;
   selectedLineInfo.value = null;
   selectedWellInfo.value = null;
+  researchPanelWellId.value = null;
 }
 
 // 根据是否具备研究资料设置井点和标签样式
@@ -738,6 +758,7 @@ function bindClickEvent() {
     if (typeof wellId === "string") {
       const well = findAquiferWellById(wellId);
       if (well) {
+        researchPanelWellId.value = null;
         selectedWellInfo.value = createAquiferWellPresentation(well);
         selectedLineInfo.value = null;
         setPopupPosition(movement.position, 340, 390);
@@ -776,6 +797,7 @@ function bindClickEvent() {
         endPoint: endPointStr
       };
       selectedWellInfo.value = null;
+      researchPanelWellId.value = null;
 
       // 设置弹窗位置
       setPopupPosition(movement.position, 280, 220);
@@ -786,6 +808,7 @@ function bindClickEvent() {
       // 点击空白处关闭弹窗
       selectedLineInfo.value = null;
       selectedWellInfo.value = null;
+      researchPanelWellId.value = null;
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 }
@@ -797,6 +820,15 @@ function closeLinePopup() {
 
 function closeWellPopup() {
   selectedWellInfo.value = null;
+}
+
+function openWellResearchPanel(wellId) {
+  researchPanelWellId.value = wellId;
+  selectedWellInfo.value = null;
+}
+
+function closeWellResearchPanel() {
+  researchPanelWellId.value = null;
 }
 
 // 跳转到地下场景
@@ -1273,6 +1305,24 @@ onBeforeUnmount(() => {
 .resource-empty {
   color: #7794a3;
   font-size: 12px;
+}
+
+.research-open-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 7px 10px;
+  color: #04151f;
+  font-size: 12px;
+  font-weight: 600;
+  background: #65f6c5;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.research-open-btn:hover {
+  background: #8affd9;
+  box-shadow: 0 0 12px rgba(101, 246, 197, 0.3);
 }
 
 @media screen and (max-width: 768px) {
