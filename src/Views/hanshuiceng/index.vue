@@ -20,7 +20,7 @@
           <div v-if="showAquiferInfoPanel" class="aquifer-info-overlay">
             <div class="aquifer-info-card">
               <div class="aquifer-info-header">
-                <span class="aquifer-info-title">含水层详细信息</span>
+                <span class="aquifer-info-title">含水层详细信息（模型示意）</span>
                 <button class="aquifer-info-close" @click="closeAquiferInfo">&times;</button>
               </div>
               <div class="aquifer-info-body">
@@ -91,8 +91,9 @@
 
     <!-- 地层信息面板 -->
     <div v-if="showLayerInfo" class="layer-info-panel">
-      <h3>地层信息</h3>
+      <h3>地层信息（演示）</h3>
       <button class="close-btn" @click="showLayerInfo = false">×</button>
+      <p class="layer-info-note">以下数值为界面占位，非实测水文地质参数。</p>
       <table>
         <tbody>
           <tr>
@@ -342,6 +343,7 @@ const AQUIFER_INFO_CAMERA: CameraPose = {
 };
 
 const aquiferInfoData = [
+  // 模型示意参数：用于 Three.js 含水层模型信息卡，非苏北井网实测值。
   { label: '含水层类型', value: '孔隙承压含水层' },
   { label: '含水层厚度', value: '28.5 m' },
   { label: '顶板埋深', value: '215.3 m' },
@@ -375,22 +377,20 @@ const LAYER_GAP_DEFAULT = 10;
 const LAYER_GAP_EXPANDED = 20;
 
 function generateLayerInfo(layerId: number) {
-  const layerTypes = ["砂岩", "页岩", "石灰岩", "煤层", "粉砂岩", "泥岩"];
-  const randomType = layerTypes[Math.floor(Math.random() * layerTypes.length)];
-  let layerName = "未知地层";
-  if (layerId >= 0 && layerId < geoLayerNames.length) {
-    layerName = geoLayerNames[layerId];
-  }
+  // 演示占位：地下场景当前没有逐层实测属性，避免用随机数冒充真实资料。
+  const layerName =
+    layerId >= 0 && layerId < geoLayerNames.length
+      ? geoLayerNames[layerId]
+      : "未知地层";
   return {
     地层ID: layerId,
     地层名称: layerName,
-    地层类型: randomType,
-    "厚度(m)": (Math.random() * 50 + 10).toFixed(2),
-    "深度(m)": (Math.random() * 1000 + 100).toFixed(2),
-    "孔隙度(%)": (Math.random() * 15 + 5).toFixed(2),
-    "渗透率(mD)": (Math.random() * 200 + 10).toFixed(2),
-    "含水率(%)": (Math.random() * 20 + 5).toFixed(2),
-    "密度(g/cm³)": (Math.random() * 1.5 + 2).toFixed(2),
+    数据说明: "演示占位，非实测属性",
+    厚度: "暂无实测",
+    孔隙度: "暂无实测",
+    渗透率: "暂无实测",
+    含水率: "暂无实测",
+    密度: "暂无实测",
   };
 }
 
@@ -1073,11 +1073,18 @@ onBeforeUnmount(() => {
 
     h3 {
       margin-top: 0;
-      margin-bottom: 18px;
+      margin-bottom: 10px;
       color: #17c7fe;
       font-size: 18px;
       font-weight: 700;
       letter-spacing: 1px;
+    }
+
+    .layer-info-note {
+      margin: 0 0 14px;
+      color: #d9bd75;
+      font-size: 12px;
+      line-height: 1.5;
     }
 
     table {

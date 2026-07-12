@@ -1,95 +1,113 @@
 <template>
   <div class="chart-card">
-    <div class="chart-title">地下水位动态监测</div>
+    <div class="chart-title">8口井真实测井深度范围</div>
     <div ref="chartRef" class="chart-body"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import * as echarts from 'echarts'
+import { onBeforeUnmount, onMounted, ref } from "vue";
+import * as echarts from "echarts";
 
-const chartRef = ref<HTMLElement | null>(null)
-let chart: echarts.ECharts | null = null
+import { createAquiferHudChartModel } from "../../utils/aquiferHudCharts";
 
-const hours = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`)
+const chartRef = ref<HTMLElement | null>(null);
+let chart: echarts.ECharts | null = null;
+let resizeObserver: ResizeObserver | null = null;
 
-const wellData = [
-  { name: '1# 监测井', values: [12.3, 12.1, 11.8, 11.5, 11.2, 11.0, 10.8, 10.9, 11.2, 11.6, 12.0, 12.4, 12.8, 13.0, 13.1, 12.9, 12.6, 12.3, 12.0, 11.8, 11.6, 11.5, 11.7, 12.0] },
-  { name: '2# 监测井', values: [8.5, 8.3, 8.1, 7.9, 7.7, 7.6, 7.5, 7.6, 7.8, 8.1, 8.4, 8.7, 9.0, 9.2, 9.3, 9.1, 8.9, 8.6, 8.4, 8.2, 8.0, 7.9, 8.0, 8.2] },
-  { name: '3# 监测井', values: [15.1, 14.8, 14.5, 14.2, 13.9, 13.7, 13.5, 13.6, 13.9, 14.3, 14.7, 15.1, 15.5, 15.7, 15.8, 15.5, 15.2, 14.9, 14.6, 14.3, 14.1, 14.0, 14.2, 14.6] },
-]
-
-const colors = [
-  ['rgba(23,199,254,0.8)', 'rgba(23,199,254,0.05)'],
-  ['rgba(0,230,180,0.8)', 'rgba(0,230,180,0.05)'],
-  ['rgba(255,170,50,0.8)', 'rgba(255,170,50,0.05)'],
-]
+const model = createAquiferHudChartModel();
 
 function initChart() {
-  if (!chartRef.value) return
-  chart = echarts.init(chartRef.value)
+  if (!chartRef.value) return;
+  chart = echarts.init(chartRef.value);
   chart.setOption({
     tooltip: {
-      trigger: 'axis',
-      backgroundColor: 'rgba(8,18,32,0.9)',
-      borderColor: 'rgba(23,199,254,0.3)',
-      textStyle: { color: '#e0f4ff', fontSize: 12 },
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+      backgroundColor: "rgba(8,18,32,0.9)",
+      borderColor: "rgba(23,199,254,0.3)",
+      textStyle: { color: "#e0f4ff", fontSize: 11 },
+      formatter: (params: any) => {
+        const item = Array.isArray(params) ? params[0] : params;
+        const well = model.wellDepthSpans[item.dataIndex];
+        if (!well) return "";
+        return `${well.wellId}<br>${well.minimum}–${well.maximum} m<br>跨度 ${well.span} m`;
+      },
     },
-    legend: {
-      top: 4,
-      right: 8,
-      textStyle: { color: 'rgba(255,255,255,0.7)', fontSize: 10 },
-      itemWidth: 12,
-      itemHeight: 3,
-    },
-    grid: { top: 30, right: 12, bottom: 24, left: 40 },
+    grid: { top: 18, right: 18, bottom: 28, left: 52 },
     xAxis: {
-      type: 'category',
-      data: hours,
-      axisLine: { lineStyle: { color: 'rgba(23,199,254,0.25)' } },
-      axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 9, interval: 5 },
-      splitLine: { show: false },
+      type: "value",
+      name: "深度 / m",
+      nameTextStyle: { color: "rgba(160,200,220,0.75)", fontSize: 10 },
+      axisLabel: { color: "rgba(255,255,255,0.55)", fontSize: 9 },
+      splitLine: { lineStyle: { color: "rgba(23,199,254,0.08)" } },
+      axisLine: { lineStyle: { color: "rgba(23,199,254,0.25)" } },
     },
     yAxis: {
-      type: 'value',
-      name: '水位/m',
-      nameTextStyle: { color: 'rgba(255,255,255,0.5)', fontSize: 9 },
-      axisLine: { show: false },
-      axisLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 9 },
-      splitLine: { lineStyle: { color: 'rgba(23,199,254,0.08)' } },
+      type: "category",
+      data: model.wellDepthSpans.map((well) => well.wellId),
+      axisLabel: { color: "rgba(255,255,255,0.7)", fontSize: 10 },
+      axisLine: { lineStyle: { color: "rgba(23,199,254,0.25)" } },
+      splitLine: { show: false },
     },
-    series: wellData.map((well, i) => ({
-      name: well.name,
-      type: 'line',
-      smooth: true,
-      symbol: 'none',
-      lineStyle: { width: 2, color: colors[i][0] },
-      areaStyle: {
-        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: colors[i][0] },
-          { offset: 1, color: colors[i][1] },
+    series: [
+      {
+        type: "custom",
+        renderItem: (params: any, api: any) => {
+          const categoryIndex = api.value(0);
+          const start = api.coord([api.value(1), categoryIndex]);
+          const end = api.coord([api.value(2), categoryIndex]);
+          const height = api.size([0, 1])[1] * 0.45;
+          const shape = echarts.graphic.clipRectByRect(
+            {
+              x: start[0],
+              y: start[1] - height / 2,
+              width: Math.max(1, end[0] - start[0]),
+              height,
+            },
+            {
+              x: params.coordSys.x,
+              y: params.coordSys.y,
+              width: params.coordSys.width,
+              height: params.coordSys.height,
+            },
+          );
+          return shape
+            ? {
+                type: "rect",
+                shape,
+                style: {
+                  fill: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                    { offset: 0, color: "rgba(23,199,254,0.35)" },
+                    { offset: 1, color: "rgba(101,246,197,0.9)" },
+                  ]),
+                },
+              }
+            : undefined;
+        },
+        encode: { x: [1, 2], y: 0 },
+        data: model.wellDepthSpans.map((well, index) => [
+          index,
+          well.minimum,
+          well.maximum,
         ]),
       },
-      data: well.values,
-    })),
-  })
+    ],
+  });
 }
 
-let ro: ResizeObserver | null = null
-
 onMounted(() => {
-  initChart()
+  initChart();
   if (chartRef.value) {
-    ro = new ResizeObserver(() => chart?.resize())
-    ro.observe(chartRef.value)
+    resizeObserver = new ResizeObserver(() => chart?.resize());
+    resizeObserver.observe(chartRef.value);
   }
-})
+});
 
 onBeforeUnmount(() => {
-  ro?.disconnect()
-  chart?.dispose()
-})
+  resizeObserver?.disconnect();
+  chart?.dispose();
+});
 </script>
 
 <style scoped lang="scss">
@@ -108,7 +126,7 @@ onBeforeUnmount(() => {
   padding: 8px 14px;
   font-size: 13px;
   font-weight: 600;
-  color: #17c7fe;
+  color: rgb(23, 199, 254);
   border-bottom: 1px solid rgba(23, 199, 254, 0.12);
   background: rgba(23, 199, 254, 0.06);
   letter-spacing: 1px;

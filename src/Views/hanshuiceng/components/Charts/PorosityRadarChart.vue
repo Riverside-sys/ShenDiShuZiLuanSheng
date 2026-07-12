@@ -1,101 +1,80 @@
 <template>
   <div class="chart-card">
-    <div class="chart-title">地层水文参数雷达图</div>
+    <div class="chart-title">苏95真实岩性构成</div>
     <div ref="chartRef" class="chart-body"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import * as echarts from 'echarts'
+import { onBeforeUnmount, onMounted, ref } from "vue";
+import * as echarts from "echarts";
 
-const chartRef = ref<HTMLElement | null>(null)
-let chart: echarts.ECharts | null = null
+import { createAquiferHudChartModel } from "../../utils/aquiferHudCharts";
+
+const chartRef = ref<HTMLElement | null>(null);
+let chart: echarts.ECharts | null = null;
+let resizeObserver: ResizeObserver | null = null;
+
+const model = createAquiferHudChartModel();
+const topShares = model.lithologyShares.slice(0, 8);
 
 function initChart() {
-  if (!chartRef.value) return
-  chart = echarts.init(chartRef.value)
+  if (!chartRef.value) return;
+  chart = echarts.init(chartRef.value);
   chart.setOption({
     tooltip: {
-      backgroundColor: 'rgba(8,18,32,0.9)',
-      borderColor: 'rgba(23,199,254,0.3)',
-      textStyle: { color: '#e0f4ff', fontSize: 11 },
+      trigger: "item",
+      backgroundColor: "rgba(8,18,32,0.9)",
+      borderColor: "rgba(23,199,254,0.3)",
+      textStyle: { color: "#e0f4ff", fontSize: 11 },
+      formatter: "{b}<br/>层数：{c}<br/>占比：{d}%",
     },
     legend: {
-      bottom: 2,
-      textStyle: { color: 'rgba(255,255,255,0.7)', fontSize: 10 },
-      itemWidth: 12,
-      itemHeight: 3,
+      type: "scroll",
+      orient: "vertical",
+      right: 4,
+      top: 10,
+      bottom: 10,
+      textStyle: { color: "rgba(255,255,255,0.7)", fontSize: 10 },
+      pageTextStyle: { color: "rgba(255,255,255,0.55)" },
     },
-    radar: {
-      center: ['50%', '46%'],
-      radius: '58%',
-      indicator: [
-        { name: '孔隙度', max: 30 },
-        { name: '渗透率', max: 300 },
-        { name: '含水率', max: 40 },
-        { name: '密度', max: 4 },
-        { name: '弹性模量', max: 50 },
-        { name: '压缩系数', max: 1 },
-      ],
-      axisName: { color: 'rgba(255,255,255,0.55)', fontSize: 10 },
-      splitArea: {
-        areaStyle: {
-          color: [
-            'rgba(23,199,254,0.02)',
-            'rgba(23,199,254,0.04)',
-            'rgba(23,199,254,0.06)',
-            'rgba(23,199,254,0.08)',
-            'rgba(23,199,254,0.10)',
-          ],
+    series: [
+      {
+        name: "苏95岩性",
+        type: "pie",
+        radius: ["42%", "68%"],
+        center: ["38%", "52%"],
+        avoidLabelOverlap: true,
+        itemStyle: {
+          borderColor: "rgba(4,15,27,0.85)",
+          borderWidth: 1,
         },
+        label: {
+          color: "rgba(224,244,255,0.85)",
+          fontSize: 10,
+          formatter: "{d}%",
+        },
+        data: topShares.map((item) => ({
+          name: item.name,
+          value: item.count,
+        })),
       },
-      axisLine: { lineStyle: { color: 'rgba(23,199,254,0.15)' } },
-      splitLine: { lineStyle: { color: 'rgba(23,199,254,0.12)' } },
-    },
-    series: [{
-      type: 'radar',
-      data: [
-        {
-          name: '粉砂层',
-          value: [18.5, 180, 22.3, 2.65, 32, 0.45],
-          lineStyle: { color: 'rgba(23,199,254,0.9)', width: 2 },
-          areaStyle: { color: 'rgba(23,199,254,0.2)' },
-          itemStyle: { color: '#17c7fe' },
-        },
-        {
-          name: '细沙层',
-          value: [24.2, 250, 30.1, 2.12, 18, 0.72],
-          lineStyle: { color: 'rgba(0,230,180,0.9)', width: 2 },
-          areaStyle: { color: 'rgba(0,230,180,0.2)' },
-          itemStyle: { color: '#00e6b4' },
-        },
-        {
-          name: '粉质黏土',
-          value: [8.3, 20, 35.6, 3.1, 45, 0.18],
-          lineStyle: { color: 'rgba(255,170,50,0.9)', width: 2 },
-          areaStyle: { color: 'rgba(255,170,50,0.2)' },
-          itemStyle: { color: '#ffaa32' },
-        },
-      ],
-    }],
-  })
+    ],
+  });
 }
 
-let ro: ResizeObserver | null = null
-
 onMounted(() => {
-  initChart()
+  initChart();
   if (chartRef.value) {
-    ro = new ResizeObserver(() => chart?.resize())
-    ro.observe(chartRef.value)
+    resizeObserver = new ResizeObserver(() => chart?.resize());
+    resizeObserver.observe(chartRef.value);
   }
-})
+});
 
 onBeforeUnmount(() => {
-  ro?.disconnect()
-  chart?.dispose()
-})
+  resizeObserver?.disconnect();
+  chart?.dispose();
+});
 </script>
 
 <style scoped lang="scss">
@@ -114,9 +93,9 @@ onBeforeUnmount(() => {
   padding: 8px 14px;
   font-size: 13px;
   font-weight: 600;
-  color: #00e6b4;
-  border-bottom: 1px solid rgba(0, 230, 180, 0.12);
-  background: rgba(0, 230, 180, 0.06);
+  color: rgb(23, 199, 254);
+  border-bottom: 1px solid rgba(23, 199, 254, 0.12);
+  background: rgba(23, 199, 254, 0.06);
   letter-spacing: 1px;
   flex-shrink: 0;
 }

@@ -918,6 +918,7 @@ function goToUnderground() {
   if (selectedScene.value === "mines") {
     router.push("/panyidong");
   } else if (selectedScene.value === "aquifer") {
+    // 地下场景负责三维地层/模型浏览；真实测井与岩性资料已在地表查看，不再重复携带井面板。
     router.push("/hanshuiceng");
   } else if (selectedScene.value === "saltcave") {
     router.push("/saltcave");
