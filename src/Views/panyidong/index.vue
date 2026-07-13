@@ -57,7 +57,7 @@
 
 <!-- 潘一东矿区 -->
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed, watch } from "vue"
+import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from "vue"
 import { useRoute } from "vue-router";
 import { Cartesian3 } from "cesium"
 
@@ -81,6 +81,7 @@ const uiLayer = ref(null);
 const viewerContainerRef = ref(null);
 let viewer = null;
 let teardownRoamControls = null;
+let initGeneration = 0;
 
 // 路由监听逻辑
 const route = useRoute();
@@ -92,12 +93,31 @@ const showSubscene = computed(() => {
 // 场景初始化
 const modelPath = panyidongModelUrl;
 const init = async () => {
-  if (cesiumContainer.value) {
-    viewer = await initCesiumScene(cesiumContainer.value, modelPath);
-    if (viewer) {
-      teardownRoamControls = setupRoamControls(viewer);
-    }
+  if (!cesiumContainer.value || showSubscene.value || viewer) return;
+
+  const generation = ++initGeneration;
+  const nextViewer = await initCesiumScene(cesiumContainer.value, modelPath);
+  if (!nextViewer) return;
+
+  if (generation !== initGeneration || showSubscene.value) {
+    if (!nextViewer.isDestroyed?.()) nextViewer.destroy();
+    return;
   }
+
+  viewer = nextViewer;
+  teardownRoamControls = setupRoamControls(viewer);
+}
+
+const destroyViewer = () => {
+  initGeneration++;
+  if (teardownRoamControls) {
+    teardownRoamControls();
+    teardownRoamControls = null;
+  }
+  if (viewer && !viewer.isDestroyed?.()) {
+    viewer.destroy();
+  }
+  viewer = null;
 }
 
 // 处理 UI 缩放 (1920x1080 基准)
@@ -130,31 +150,27 @@ const handleFlyTo = (key) => {
   }
 }
 
-// 监听子场景切换，如果是切回主场景，确保重新渲染或恢复状态
-watch(showSubscene, (val) => {
-  if (!val) {
-    // 切回主场景时，可能需要重新resize一下以确保UI正常
-    setTimeout(() => {
-      handleResize();
-    }, 100);
+// 子场景使用独立 WebGL 渲染器，切换时释放父场景，避免两个大型三维场景并行驻留。
+watch(showSubscene, async (val) => {
+  if (val) {
+    destroyViewer();
+    return;
   }
+
+  await nextTick();
+  await init();
+  handleResize();
 });
 
 onMounted(() => {
-  init();
+  if (!showSubscene.value) init();
   handleResize();
   window.addEventListener('resize', handleResize);
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize);
-  if (teardownRoamControls) {
-    teardownRoamControls();
-    teardownRoamControls = null;
-  }
-  if (viewer) {
-    viewer.destroy()
-  }
+  destroyViewer();
 })
 </script>
 

@@ -176,8 +176,6 @@ interface SegmentStatus {
   pointCount: number;
   hasColor: boolean;
   qualityScore: number;
-  center: THREE.Vector3 | null;
-  size: THREE.Vector3 | null;
 }
 
 const segmentStatus = ref<SegmentStatus[]>(
@@ -188,8 +186,6 @@ const segmentStatus = ref<SegmentStatus[]>(
     pointCount: 0,
     hasColor: false,
     qualityScore: 0,
-    center: null,
-    size: null,
   })),
 );
 
@@ -217,6 +213,7 @@ let scene: THREE.Scene | null = null;
 let camera: THREE.PerspectiveCamera | null = null;
 let controls: OrbitControls | null = null;
 let animationId: number | null = null;
+let renderRequested = true;
 let mergedPoints: THREE.Points | THREE.Mesh | null = null;
 let mergedBBox: THREE.Box3 | null = null;
 let mergedCenter = new THREE.Vector3();
@@ -236,9 +233,6 @@ const OVERVIEW_TOUR_DURATION = 10_000;
 let autoStartTime = 0;
 let autoDuration = INSPECTION_DURATION;
 
-let segmentCache = new Map<number, THREE.Points | THREE.Mesh>();
-const segmentGroup = new THREE.Group();
-
 let centerlineCurve: THREE.CatmullRomCurve3 | null = null;
 let longAxis: "x" | "y" | "z" = "x";
 let centerlineHelper: THREE.Line | null = null;
@@ -248,18 +242,30 @@ let roamUnitsPerSec = 8;
 let roamUnitsPerSecFast = 28;
 const MOUSE_SENSITIVITY = 0.0025;
 const SEGMENT_COUNT = 11;
-let segmentHighlightMesh: THREE.Mesh | null = null;
-const OVERVIEW_CAMERA_DISTANCE_SCALE = 0.72;
-const OVERVIEW_CAMERA_PITCH_DEGREES = 24;
-const OVERVIEW_CAMERA_YAW_DEGREES = -68;
+// PLY 巷道模型以 Z 轴为竖直方向；所有进入巷道的相机都必须使用同一上方向。
+const ROADWAY_WORLD_UP = new THREE.Vector3(0, 0, 1);
+const segmentHighlightUniforms = {
+  enabled: { value: 0 },
+  axis: { value: new THREE.Vector3(1, 0, 0) },
+  range: { value: new THREE.Vector2() },
+};
+// 默认总览采用沿巷道轴线的斜俯视构图：近端形成前景，远端指向消失点。
+const OVERVIEW_CAMERA_DISTANCE_SCALE = 0.64;
+const OVERVIEW_CAMERA_PITCH_DEGREES = 16;
+const OVERVIEW_CAMERA_YAW_DEGREES = -35;
+const OVERVIEW_CAMERA_TARGET_T = 0.38;
 const initialOverviewCamera = {
   position: new THREE.Vector3(0, 80, 200),
   target: new THREE.Vector3(),
-  up: new THREE.Vector3(0, 0, 1),
+  up: ROADWAY_WORLD_UP.clone(),
   fov: 52,
   near: 0.1,
   far: 50000,
   zoom: 1,
+};
+
+const requestRender = () => {
+  renderRequested = true;
 };
 
 const updateInitialOverviewCamera = () => {
@@ -269,14 +275,14 @@ const updateInitialOverviewCamera = () => {
     bounds: mergedBBox,
     nearPoint: centerlineCurve.getPoint(0.02),
     farPoint: centerlineCurve.getPoint(0.98),
-    targetPoint: centerlineCurve.getPoint(0.6),
+    targetPoint: centerlineCurve.getPoint(OVERVIEW_CAMERA_TARGET_T),
     fitPoints: overviewFitPoints,
     aspect: camera.aspect,
     fov: initialOverviewCamera.fov,
     pitchDegrees: OVERVIEW_CAMERA_PITCH_DEGREES,
     yawDegrees: OVERVIEW_CAMERA_YAW_DEGREES,
-    horizontalFill: 0.88,
-    verticalFill: 0.7,
+    horizontalFill: 0.84,
+    verticalFill: 0.8,
   });
 
   initialOverviewCamera.position.copy(overview.position);
@@ -311,18 +317,14 @@ const applyInitialOverviewCamera = () => {
 
   initialCameraPos.copy(initialOverviewCamera.position);
   initialTarget.copy(initialOverviewCamera.target);
+  requestRender();
 };
 
 const applyRoadwayOffset = (offset: THREE.Vector3) => {
   roadwayOffset.copy(offset);
   if (mergedPoints) mergedPoints.position.copy(offset);
-  segmentGroup.position.copy(offset);
   if (centerlineHelper) centerlineHelper.position.copy(offset);
-  if (segmentHighlightMesh) {
-    segmentHighlightMesh.position.copy(offset);
-    if (activeSegmentId.value != null)
-      refreshSegmentHighlightPlanes(activeSegmentId.value);
-  }
+  requestRender();
 };
 
 const resetRoadwayOffset = () => {
@@ -349,8 +351,6 @@ const setupRenderer = () => {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.7;
-  renderer.localClippingEnabled = true;
-
   camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 50000);
   camera.position.set(0, 80, 200);
   camera.lookAt(0, 0, 0);
@@ -381,9 +381,6 @@ const setupRenderer = () => {
   (grid.material as THREE.Material).opacity = 0.35;
   grid.position.y = -2;
   scene.add(grid);
-
-  segmentGroup.visible = true;
-  scene.add(segmentGroup);
 };
 
 const loadPLY = (
@@ -405,6 +402,76 @@ const loadPLY = (
   });
 };
 
+const createRoadwayMaterial = () => {
+  const fogUniforms = THREE.UniformsUtils.clone(THREE.UniformsLib.fog);
+  const material = new THREE.ShaderMaterial({
+    name: "WoniushanRoadwayMaterial",
+    uniforms: {
+      ...fogUniforms,
+      roadwayHighlightEnabled: segmentHighlightUniforms.enabled,
+      roadwayHighlightAxis: segmentHighlightUniforms.axis,
+      roadwayHighlightRange: segmentHighlightUniforms.range,
+    },
+    vertexColors: true,
+    side: THREE.DoubleSide,
+    vertexShader: /* glsl */ `
+      varying vec3 vRoadwayColor;
+      varying vec3 vRoadwayPosition;
+
+      #include <fog_pars_vertex>
+
+      void main() {
+        vRoadwayColor = color;
+        vRoadwayPosition = position;
+
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+
+        #include <fog_vertex>
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform float roadwayHighlightEnabled;
+      uniform vec3 roadwayHighlightAxis;
+      uniform vec2 roadwayHighlightRange;
+
+      varying vec3 vRoadwayColor;
+      varying vec3 vRoadwayPosition;
+
+      #include <fog_pars_fragment>
+
+      void main() {
+        float roadwayAxisPosition = dot(
+          roadwayHighlightAxis,
+          vRoadwayPosition
+        );
+        float roadwayHighlightMask = step(
+          roadwayHighlightRange.x,
+          roadwayAxisPosition
+        ) * step(
+          roadwayAxisPosition,
+          roadwayHighlightRange.y
+        ) * step(0.5, roadwayHighlightEnabled);
+
+        gl_FragColor = vec4(vRoadwayColor, 1.0);
+
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+
+        gl_FragColor.rgb = mix(
+          gl_FragColor.rgb,
+          vec3(0.08, 0.95, 0.55),
+          roadwayHighlightMask * 0.86
+        );
+      }
+    `,
+  });
+  material.fog = true;
+  material.toneMapped = true;
+  return material;
+};
+
 const buildObjectFromGeometry = (
   geometry: THREE.BufferGeometry,
   options: { pointColor?: number; meshColor?: number; pointSize?: number } = {},
@@ -413,16 +480,11 @@ const buildObjectFromGeometry = (
   const hasColor = geometry.hasAttribute("color");
 
   if (hasIndex) {
-    geometry.computeVertexNormals();
-    // 有顶点色时用 Lambert，避免 Standard+暗岩壁被 PBR 压得过黑
+    // 贴色模型直接显示采集色，避免为千万级网格同步计算并上传顶点法线。
     if (hasColor) {
-      const material = new THREE.MeshLambertMaterial({
-        color: 0xffffff,
-        vertexColors: true,
-        side: THREE.DoubleSide,
-      });
-      return new THREE.Mesh(geometry, material);
+      return new THREE.Mesh(geometry, createRoadwayMaterial());
     }
+    geometry.computeVertexNormals();
     const material = new THREE.MeshStandardMaterial({
       color: options.meshColor ?? 0xffffff,
       side: THREE.DoubleSide,
@@ -478,6 +540,7 @@ const loadMergedMesh = async () => {
 
     loadingMessage.value = "加载完成";
     loadProgress.value = 100;
+    requestRender();
   } catch (err) {
     console.error("卧牛山合并模型加载失败:", err);
     errorMessage.value = `卧牛山合并模型加载失败：${err instanceof Error ? err.message : String(err)}`;
@@ -488,9 +551,7 @@ const loadMergedMesh = async () => {
   }
 };
 
-const ensureSegmentLoaded = async (
-  id: number,
-): Promise<SegmentStatus | null> => {
+const ensureSegmentMetadata = (id: number): SegmentStatus | null => {
   const status = segmentStatus.value.find((s) => s.id === id);
   if (!status) return null;
   if (status.loaded) return status;
@@ -498,52 +559,11 @@ const ensureSegmentLoaded = async (
   const seg = woniushanSegments.find((s) => s.id === id);
   if (!seg) return null;
 
-  try {
-    const geometry = await loadPLY(seg.url);
-    const obj = buildObjectFromGeometry(geometry, {
-      pointSize: 0.22,
-      pointColor: 0x65f6c5,
-      meshColor: 0x65f6c5,
-    });
-    if (obj instanceof THREE.Mesh) {
-      const mat = obj.material as THREE.MeshStandardMaterial;
-      mat.color.setHex(0x65f6c5);
-      mat.emissive.setHex(0x2a8f6a);
-      mat.emissiveIntensity = 0.55;
-      mat.transparent = true;
-      mat.opacity = 0.72;
-      mat.depthWrite = false;
-    } else if (obj instanceof THREE.Points) {
-      (obj.material as THREE.PointsMaterial).color.setHex(0x65f6c5);
-    }
-    obj.visible = false;
-    segmentGroup.add(obj);
-    segmentCache.set(id, obj);
-
-    geometry.computeBoundingBox();
-    const bbox =
-      geometry.boundingBox?.clone() ?? new THREE.Box3().setFromObject(obj);
-    const center = new THREE.Vector3();
-    const size = new THREE.Vector3();
-    bbox.getCenter(center);
-    bbox.getSize(size);
-
-    const pos = geometry.getAttribute("position");
-    status.pointCount = pos ? pos.count : 0;
-    status.hasColor = geometry.hasAttribute("color");
-    status.qualityScore = computeQualityScore(
-      status.pointCount,
-      status.hasColor,
-    );
-    status.center = center;
-    status.size = size;
-    status.loaded = true;
-
-    return status;
-  } catch (err) {
-    console.warn(`分段 ${id} 加载失败:`, err);
-    return null;
-  }
+  status.pointCount = seg.pointCount;
+  status.hasColor = seg.hasColor;
+  status.qualityScore = computeQualityScore(seg.pointCount, seg.hasColor);
+  status.loaded = true;
+  return status;
 };
 
 const computeQualityScore = (pointCount: number, hasColor: boolean) => {
@@ -573,13 +593,19 @@ const computeCenterline = (geometry: THREE.BufferGeometry) => {
   const count = new Int32Array(sliceCount);
 
   const n = positions.count;
-  const overviewSampleStep = Math.max(1, Math.floor(n / 6000));
+  const centerlineSampleStep = Math.max(1, Math.ceil(n / 1_500_000));
+  const sampledPointCount = Math.ceil(n / centerlineSampleStep);
+  const overviewSampleStep = Math.max(
+    1,
+    Math.ceil(sampledPointCount / 6000),
+  );
   overviewFitPoints.length = 0;
-  for (let i = 0; i < n; i++) {
+  let sampleIndex = 0;
+  for (let i = 0; i < n; i += centerlineSampleStep, sampleIndex++) {
     const x = positions.getX(i);
     const y = positions.getY(i);
     const z = positions.getZ(i);
-    if (i % overviewSampleStep === 0) {
+    if (sampleIndex % overviewSampleStep === 0) {
       overviewFitPoints.push(new THREE.Vector3(x, y, z));
     }
     const val = longAxis === "x" ? x : longAxis === "y" ? y : z;
@@ -680,57 +706,36 @@ const orientCenterlineToScreenLeft = () => {
   buildCenterlineHelper();
 };
 
-const refreshSegmentHighlightPlanes = (id: number) => {
-  if (!segmentHighlightMesh || !centerlineCurve) return;
+const refreshSegmentHighlightRange = (id: number) => {
+  if (!centerlineCurve) return;
 
   const t0 = Math.max(0, (id - 1) / SEGMENT_COUNT);
   const t1 = Math.min(1, id / SEGMENT_COUNT);
-  const p0 = centerlineCurve.getPoint(t0).add(roadwayOffset);
-  const p1 = centerlineCurve.getPoint(t1).add(roadwayOffset);
-  const tan0 = centerlineCurve.getTangent(t0).normalize();
-  const tan1 = centerlineCurve.getTangent(t1).normalize();
+  const start = centerlineCurve.getPoint(t0)[longAxis];
+  const end = centerlineCurve.getPoint(t1)[longAxis];
 
-  // 保留中线区间 [t0, t1] 之间的主巷道表面
-  const plane0 = new THREE.Plane().setFromNormalAndCoplanarPoint(tan0, p0);
-  const plane1 = new THREE.Plane().setFromNormalAndCoplanarPoint(
-    tan1.clone().negate(),
-    p1,
+  segmentHighlightUniforms.axis.value.set(
+    longAxis === "x" ? 1 : 0,
+    longAxis === "y" ? 1 : 0,
+    longAxis === "z" ? 1 : 0,
   );
-  const mat = segmentHighlightMesh.material as THREE.MeshStandardMaterial;
-  mat.clippingPlanes = [plane0, plane1];
+  segmentHighlightUniforms.range.value.set(
+    Math.min(start, end),
+    Math.max(start, end),
+  );
 };
 
 const setSegmentHighlight = (id: number | null) => {
-  if (!scene || !mergedPoints || !(mergedPoints instanceof THREE.Mesh)) return;
-
   if (id == null) {
-    if (segmentHighlightMesh) segmentHighlightMesh.visible = false;
+    segmentHighlightUniforms.enabled.value = 0;
+    requestRender();
     return;
   }
 
-  if (!centerlineCurve) return;
-
-  if (!segmentHighlightMesh) {
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0x65f6c5,
-      emissive: 0x2a8f6a,
-      emissiveIntensity: 0.45,
-      transparent: true,
-      opacity: 0.58,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-      metalness: 0.02,
-      roughness: 0.75,
-      clippingPlanes: [],
-    });
-    segmentHighlightMesh = new THREE.Mesh(mergedPoints.geometry, mat);
-    segmentHighlightMesh.renderOrder = 2;
-    segmentHighlightMesh.position.copy(roadwayOffset);
-    scene.add(segmentHighlightMesh);
-  }
-
-  refreshSegmentHighlightPlanes(id);
-  segmentHighlightMesh.visible = true;
+  if (!centerlineCurve || !(mergedPoints instanceof THREE.Mesh)) return;
+  refreshSegmentHighlightRange(id);
+  segmentHighlightUniforms.enabled.value = 1;
+  requestRender();
 };
 
 /** 外部视角平滑飞到指定分段（不进入巷道内部） */
@@ -779,33 +784,27 @@ const handleEnterRoadway = () => {
 
   setMode("roam");
 
-  camera.up.set(0, 1, 0);
+  camera.up.copy(ROADWAY_WORLD_UP);
   camera.position.copy(sample.pos);
   camera.lookAt(ahead.pos);
   cameraEuler.setFromQuaternion(camera.quaternion);
 
   activeSegmentId.value = segmentStatus.value[0]?.id ?? null;
   setSegmentHighlight(null);
-  Array.from(segmentCache.values()).forEach((obj) => {
-    obj.visible = false;
-  });
   if (mergedPoints) mergedPoints.visible = true;
+  requestRender();
 };
 
-const handleFocusSegment = async (id: number) => {
+const handleFocusSegment = (id: number) => {
   if (mode.value === "auto") stopAuto();
 
-  Array.from(segmentCache.values()).forEach((obj) => {
-    obj.visible = false;
-  });
   if (mergedPoints) mergedPoints.visible = true;
 
   activeSegmentId.value = id;
   setSegmentHighlight(id);
   flyToSegmentExternal(id);
 
-  // 质量面板数据仍按分段文件懒加载，与空间高亮解耦
-  void ensureSegmentLoaded(id);
+  ensureSegmentMetadata(id);
 };
 
 const easeInOutCubic = (t: number) =>
@@ -831,6 +830,7 @@ const flyTo = (
     camera.position.lerpVectors(startPos, endPos, e);
     controls.target.lerpVectors(startTarget, endTarget, e);
     controls.update();
+    requestRender();
     if (t < 1) {
       flyingRAF = requestAnimationFrame(step);
     } else {
@@ -845,9 +845,6 @@ const handleResetView = () => {
   if (mode.value !== "overview") setMode("overview");
   activeSegmentId.value = null;
   setSegmentHighlight(null);
-  Array.from(segmentCache.values()).forEach((obj) => {
-    obj.visible = false;
-  });
   if (mergedPoints) mergedPoints.visible = true;
   flyTo(initialCameraPos, initialTarget, 1000);
 };
@@ -865,6 +862,7 @@ const setMode = (next: SceneMode) => {
   if (controls) {
     controls.enabled = next === "overview";
   }
+  requestRender();
 };
 
 const handleOverviewTour = () => {
@@ -874,9 +872,6 @@ const handleOverviewTour = () => {
 
   activeSegmentId.value = null;
   setSegmentHighlight(null);
-  Array.from(segmentCache.values()).forEach((obj) => {
-    obj.visible = false;
-  });
   if (mergedPoints) mergedPoints.visible = true;
 
   startAuto(true, "overviewTour");
@@ -951,12 +946,13 @@ const buildAutoPath = (outside = false) => {
 
 const startAuto = (outside = false, nextMode: SceneMode = "auto") => {
   if (!camera || !controls || !mergedBBox) return;
+  setSegmentHighlight(null);
   if (nextMode === "overviewTour") {
     resetRoadwayOffset();
     applyInitialOverviewCamera();
   } else {
     resetRoadwayOffset();
-    camera.up.set(0, 1, 0);
+    camera.up.copy(ROADWAY_WORLD_UP);
   }
   buildAutoPath(outside);
   if (autoPath.length < 2) return;
@@ -995,6 +991,8 @@ const tickAuto = () => {
   const lookAt = new THREE.Vector3().lerpVectors(a.target, b.target, e);
   if (isInspection) {
     camera.position.lerpVectors(a.pos, b.pos, e);
+    // 每帧固定模型的真实竖直轴，避免从其他模式切入后继承错误 up 导致画面侧翻。
+    camera.up.copy(ROADWAY_WORLD_UP);
     camera.lookAt(lookAt);
   } else {
     camera.position.copy(initialOverviewCamera.position);
@@ -1007,7 +1005,6 @@ const tickAuto = () => {
     : null;
   if (seg && activeSegmentId.value !== seg.id) {
     activeSegmentId.value = seg.id;
-    if (isInspection) setSegmentHighlight(seg.id);
   }
 
   if (t >= 1) {
@@ -1024,7 +1021,7 @@ const tickAuto = () => {
 };
 
 const tickRoam = (dt: number) => {
-  if (!camera) return;
+  if (!camera) return false;
   const forward = new THREE.Vector3();
   camera.getWorldDirection(forward);
   forward.normalize();
@@ -1044,7 +1041,9 @@ const tickRoam = (dt: number) => {
   if (move.lengthSq() > 0) {
     move.normalize().multiplyScalar(speed);
     camera.position.add(move);
+    return true;
   }
+  return false;
 };
 
 let lastFrame = performance.now();
@@ -1053,16 +1052,19 @@ const animate = () => {
   const now = performance.now();
   const dt = Math.min((now - lastFrame) / 1000, 0.05);
   lastFrame = now;
+  let shouldRender = renderRequested;
+  renderRequested = false;
 
   if (mode.value === "overview" && controls) {
-    controls.update();
+    shouldRender = controls.update() || shouldRender;
   } else if (mode.value === "roam") {
-    tickRoam(dt);
+    shouldRender = tickRoam(dt) || shouldRender;
   } else if (mode.value === "auto" || mode.value === "overviewTour") {
     tickAuto();
+    shouldRender = true;
   }
 
-  if (renderer && scene && camera) {
+  if (shouldRender && renderer && scene && camera) {
     renderer.render(scene, camera);
   }
 };
@@ -1114,6 +1116,7 @@ const onMouseMove = (e: MouseEvent) => {
     Math.min(Math.PI / 2 - 0.05, cameraEuler.x),
   );
   camera.quaternion.setFromEuler(cameraEuler);
+  requestRender();
 };
 
 const onCanvasClick = () => {
@@ -1156,6 +1159,7 @@ const handleResize = () => {
   updateInitialOverviewCamera();
   if (wasAtInitialView) applyInitialOverviewCamera();
   scaleUiLayer();
+  requestRender();
 };
 
 const scaleUiLayer = () => {
@@ -1219,14 +1223,6 @@ onBeforeUnmount(() => {
     });
   };
   disposeObj(mergedPoints);
-  if (segmentHighlightMesh) {
-    // geometry 与主模型共享，只释放材质
-    (segmentHighlightMesh.material as THREE.Material).dispose();
-    scene?.remove(segmentHighlightMesh);
-    segmentHighlightMesh = null;
-  }
-  segmentCache.forEach((o) => disposeObj(o));
-  segmentCache.clear();
 
   if (centerlineHelper) {
     centerlineHelper.geometry.dispose();
