@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fatal Governance Agent"
+  short_description: "基于人工确认、规则校验与幂等入库的 Fatal 治理 Agent"
+  default_prompt: "Use $fatal-governance to process a newly discovered Fatal through review, validation, and persistence planning."
