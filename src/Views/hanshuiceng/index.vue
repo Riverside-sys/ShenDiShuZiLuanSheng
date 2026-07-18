@@ -17,31 +17,6 @@
             {{ modelTagLabel }}
           </button>
         </div>
-        <!-- 含水层信息面板 -->
-        <Transition name="aquifer-panel">
-          <div v-if="showAquiferInfoPanel" class="aquifer-info-overlay">
-            <div class="aquifer-info-card">
-              <div class="aquifer-info-header">
-                <span class="aquifer-info-title"
-                  >含水层三维模型（实测剖面 + 模拟解释）</span
-                >
-                <button class="aquifer-info-close" @click="closeAquiferInfo">
-                  &times;
-                </button>
-              </div>
-              <div class="aquifer-info-body">
-                <div
-                  v-for="item in aquiferInfoData"
-                  :key="item.label"
-                  class="aquifer-info-row"
-                >
-                  <span class="aquifer-info-label">{{ item.label }}</span>
-                  <span class="aquifer-info-value">{{ item.value }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Transition>
         <div
           v-if="activeModelBtn === 'aquifer'"
           class="seismic-model-legend"
@@ -308,36 +283,73 @@
 
     <!-- 右侧数据面板：操作按需展开，证据图表始终可见。 -->
     <aside class="right-data-panel">
-      <section class="analysis-fold" :class="{ open: analysisMenuExpanded }">
-        <button
-          class="analysis-fold__trigger"
-          :aria-expanded="analysisMenuExpanded"
-          @click="analysisMenuExpanded = !analysisMenuExpanded"
+      <Transition name="aquifer-panel" mode="out-in">
+        <section
+          v-if="showAquiferInfoPanel"
+          key="model-info"
+          class="aquifer-info-card aquifer-info-card--rail"
         >
-          <span>
-            <small>ANALYSIS LIBRARY</small>
-            含水层分析
-          </span>
-          <i aria-hidden="true">⌄</i>
-        </button>
-        <Transition name="analysis-fold">
-          <div v-show="analysisMenuExpanded" class="analysis-fold__body">
+          <div class="aquifer-info-header">
+            <span>
+              <small>MODEL DOCUMENTATION</small>
+              <strong class="aquifer-info-title">含水层模型说明</strong>
+            </span>
             <button
-              v-for="item in analysisItems"
-              :key="item.label"
-              class="analysis-fold__item"
-              :style="{ '--btn-rgb': item.color } as any"
-              @click="openAnalysis(item)"
+              class="aquifer-info-close"
+              aria-label="关闭模型说明"
+              @click="closeAquiferInfo"
             >
-              <i aria-hidden="true"></i>
-              <span>{{ item.label }}</span>
-              <b aria-hidden="true">↗</b>
+              &times;
             </button>
           </div>
-        </Transition>
-      </section>
-      <JidaSeismicSurveyChart />
-      <JidaHorizonDepthChart />
+          <p class="aquifer-info-summary">吉大实测地震剖面与科研展示模拟解释</p>
+          <div class="aquifer-info-body">
+            <div
+              v-for="item in aquiferInfoData"
+              :key="item.label"
+              class="aquifer-info-row"
+            >
+              <span class="aquifer-info-label">{{ item.label }}</span>
+              <span class="aquifer-info-value">{{ item.value }}</span>
+            </div>
+          </div>
+        </section>
+        <div v-else key="data-charts" class="right-data-panel__content">
+          <section
+            class="analysis-fold"
+            :class="{ open: analysisMenuExpanded }"
+          >
+            <button
+              class="analysis-fold__trigger"
+              :aria-expanded="analysisMenuExpanded"
+              @click="analysisMenuExpanded = !analysisMenuExpanded"
+            >
+              <span>
+                <small>ANALYSIS LIBRARY</small>
+                含水层分析
+              </span>
+              <i aria-hidden="true">⌄</i>
+            </button>
+            <Transition name="analysis-fold">
+              <div v-show="analysisMenuExpanded" class="analysis-fold__body">
+                <button
+                  v-for="item in analysisItems"
+                  :key="item.label"
+                  class="analysis-fold__item"
+                  :style="{ '--btn-rgb': item.color } as any"
+                  @click="openAnalysis(item)"
+                >
+                  <i aria-hidden="true"></i>
+                  <span>{{ item.label }}</span>
+                  <b aria-hidden="true">↗</b>
+                </button>
+              </div>
+            </Transition>
+          </section>
+          <JidaSeismicSurveyChart />
+          <JidaHorizonDepthChart />
+        </div>
+      </Transition>
     </aside>
 
     <!-- 底部只保留当前场景的相机复位。 -->
@@ -1765,17 +1777,9 @@ onBeforeUnmount(() => {
     border-top: 1px solid rgba(126, 239, 255, 0.16);
   }
 
-  .aquifer-info-overlay {
-    position: absolute;
-    right: 240px;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 30;
-    pointer-events: auto;
-  }
-
   .aquifer-info-card {
-    width: 320px;
+    width: 100%;
+    box-sizing: border-box;
     background: rgba(8, 18, 36, 0.92);
     border: 1px solid rgba(0, 220, 200, 0.45);
     border-radius: 12px;
@@ -1786,6 +1790,13 @@ onBeforeUnmount(() => {
     overflow: hidden;
   }
 
+  .aquifer-info-card--rail {
+    min-height: 0;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
   .aquifer-info-header {
     display: flex;
     align-items: center;
@@ -1793,13 +1804,30 @@ onBeforeUnmount(() => {
     padding: 12px 16px;
     background: rgba(0, 220, 200, 0.1);
     border-bottom: 1px solid rgba(0, 220, 200, 0.25);
+    small {
+      display: block;
+      margin-bottom: 3px;
+      color: rgba(74, 218, 229, .52);
+      font-size: 8px;
+      letter-spacing: 1.3px;
+    }
   }
 
   .aquifer-info-title {
+    display: block;
     font-size: 15px;
     font-weight: 600;
     color: #00dcc8;
     letter-spacing: 0.5px;
+  }
+
+  .aquifer-info-summary {
+    margin: 0;
+    padding: 10px 16px;
+    color: rgba(191, 226, 232, .58);
+    border-bottom: 1px solid rgba(0, 220, 200, .1);
+    font-size: 10px;
+    line-height: 1.45;
   }
 
   .aquifer-info-close {
@@ -1818,8 +1846,9 @@ onBeforeUnmount(() => {
   }
 
   .aquifer-info-body {
+    min-height: 0;
+    flex: 1;
     padding: 10px 16px 14px;
-    max-height: 380px;
     overflow-y: auto;
 
     &::-webkit-scrollbar {
@@ -1832,10 +1861,11 @@ onBeforeUnmount(() => {
   }
 
   .aquifer-info-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 0;
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    padding: 10px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     transition: background 0.15s;
 
@@ -1850,17 +1880,19 @@ onBeforeUnmount(() => {
   }
 
   .aquifer-info-label {
-    font-size: 13px;
+    padding-top: 1px;
+    font-size: 11px;
     color: rgba(255, 255, 255, 0.6);
-    flex-shrink: 0;
   }
 
   .aquifer-info-value {
-    font-size: 14px;
+    min-width: 0;
+    font-size: 11px;
     font-weight: 600;
     color: #e0f8f4;
     text-align: right;
-    padding-left: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
   }
 
   .vp-floating-tag {
@@ -1933,6 +1965,13 @@ onBeforeUnmount(() => {
       background: rgba(23, 199, 254, 0.28);
       border-radius: 3px;
     }
+  }
+
+  .right-data-panel__content {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
   }
 
   .analysis-fold {
