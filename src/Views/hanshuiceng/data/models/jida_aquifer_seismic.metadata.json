@@ -1,0 +1,83 @@
+{
+  "model": "jida_aquifer_seismic.glb",
+  "coordinateConvention": {
+    "x": "local horizontal metres; DZ1/DZ5 CDP direction",
+    "y": "negative depth metres multiplied by verticalExaggeration",
+    "z": "local horizontal metres; DZ2 CDP direction"
+  },
+  "sampling": {
+    "depthIntervalMetres": 1.0,
+    "cdpIntervalMetres": 5.0,
+    "depthIntervalStatus": "inferred from matrix size and supplied 0-1400 m preview; confirm with provider"
+  },
+  "verticalExaggeration": 2.5,
+  "measured": {
+    "DZ1": {
+      "matrixShape": [
+        1308,
+        2334
+      ],
+      "intersectionTrace": 652,
+      "trackedSeedDepthMetres": 719,
+      "horizonDepthRangeMetres": [
+        646.8,
+        793.1
+      ]
+    },
+    "DZ2": {
+      "matrixShape": [
+        1301,
+        1822
+      ],
+      "intersectionTrace": 743,
+      "trackedSeedDepthMetres": 718,
+      "horizonDepthRangeMetres": [
+        673.1,
+        771.1
+      ]
+    },
+    "DZ5": {
+      "matrixShape": [
+        1377,
+        3201
+      ],
+      "intersectionTrace": 1601,
+      "trackedSeedDepthMetres": 724,
+      "horizonDepthRangeMetres": [
+        669.4,
+        849.4
+      ]
+    }
+  },
+  "simulation": {
+    "dz5Placement": "parallel to DZ1, 3000 m from DZ1, centred on DZ2",
+    "surface": "smooth interpolation constrained by the three tracked presentation horizons",
+    "thicknessMetres": 36.0,
+    "thicknessVariationMetres": 4.0,
+    "usage": "research presentation only; not a geological interpretation deliverable"
+  },
+  "surfaceDepthRangeMetres": [
+    625.0,
+    825.0
+  ],
+  "bodyBottomDepthRangeMetres": [
+    657.6,
+    865.0
+  ],
+  "nodes": {
+    "sections": [
+      "SEISMIC_DZ1",
+      "SEISMIC_DZ2",
+      "SEISMIC_DZ5"
+    ],
+    "horizons": [
+      "HORIZON_DZ1",
+      "HORIZON_DZ2",
+      "HORIZON_DZ5"
+    ],
+    "body": [
+      "AQUIFER_BODY_SIMULATED",
+      "AQUIFER_TOP_SIMULATED"
+    ]
+  }
+}

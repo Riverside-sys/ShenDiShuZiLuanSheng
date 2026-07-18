@@ -8,6 +8,11 @@ src/Views/panyidong/data/*
 !src/Views/panyidong/data/index.ts
 src/Views/hanshuiceng/data/*
 !src/Views/hanshuiceng/data/index.ts
+# 新含水层主场景由脚本可复现生成，只跟踪该模型和假设元数据。
+!src/Views/hanshuiceng/data/models/
+src/Views/hanshuiceng/data/models/*
+!src/Views/hanshuiceng/data/models/jida_aquifer_seismic.glb
+!src/Views/hanshuiceng/data/models/jida_aquifer_seismic.metadata.json
 src/Views/saltCave/data/*
 !src/Views/saltCave/data/index.ts
 
@@ -16,5 +21,9 @@ graphify-out/*
 !graphify-out/GRAPH_REPORT.md
 !graphify-out/graph.json
 src/Views/graphify-out/
+
+# 含水层模型预处理过程的本地质检图，不属于运行时资产。
+outputs/aquifer_mat_diagnostics.png
+outputs/aquifer_horizon_tracking.png
 
 *.pdf

@@ -9,7 +9,7 @@ import aquiferSlicePreviewGifAssetUrl from "./速度模型动图.gif?url";
 import aquiferInversionDemoGifAssetUrl from "./vp动图.gif?url";
 import aquiferFormationVideoAssetUrl from "./含水层形成原理.mp4?url";
 import vp20ModelAssetUrl from "./models/vp20.glb?url";
-import aquiferLayerGlbAssetUrl from "./含水层.glb?url";
+import aquiferLayerGlbAssetUrl from "./models/jida_aquifer_seismic.glb?url";
 
 export const aquiferModelUrl = aquiferModelAssetUrl;
 export const aquiferLayerGlbUrl = aquiferLayerGlbAssetUrl;

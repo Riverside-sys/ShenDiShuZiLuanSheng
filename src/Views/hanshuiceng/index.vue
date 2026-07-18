@@ -23,7 +23,7 @@
             <div class="aquifer-info-card">
               <div class="aquifer-info-header">
                 <span class="aquifer-info-title"
-                  >含水层详细信息（模型示意）</span
+                  >含水层三维模型（实测剖面 + 模拟解释）</span
                 >
                 <button class="aquifer-info-close" @click="closeAquiferInfo">
                   &times;
@@ -42,6 +42,27 @@
             </div>
           </div>
         </Transition>
+        <div
+          v-if="activeModelBtn === 'aquifer'"
+          class="seismic-model-legend"
+        >
+          <div class="seismic-model-legend__title">吉大地震剖面含水层模型</div>
+          <div class="seismic-model-legend__row">
+            <i class="legend-swatch legend-swatch--section"></i>
+            红蓝剖面：DZ1 / DZ2 / DZ5 实测振幅
+          </div>
+          <div class="seismic-model-legend__row">
+            <i class="legend-swatch legend-swatch--horizon"></i>
+            黄色线：约 720 m 蓝色波谷追踪层位
+          </div>
+          <div class="seismic-model-legend__row">
+            <i class="legend-swatch legend-swatch--body"></i>
+            青色体：36 m 厚度模拟含水层
+          </div>
+          <div class="seismic-model-legend__notice">
+            DZ5 方位、剖面间插值与厚度为科研展示模拟；垂向夸张 2.5×
+          </div>
+        </div>
       </div>
     </div>
 
@@ -353,9 +374,9 @@
         </div>
       </div>
 
-      <!-- 含水层模型转换效果 -->
+      <!-- 含水层三维模型 -->
       <div class="panel-group">
-        <div class="panel-group-title">含水层模型转换效果</div>
+        <div class="panel-group-title">含水层三维模型</div>
         <div class="panel-group-body">
           <button
             class="analysis-btn"
@@ -371,7 +392,34 @@
             :style="{ '--btn-rgb': '255, 160, 60' } as any"
             @click="loadAquiferModel"
           >
-            含水层模型转换效果
+            吉大剖面含水层模型
+          </button>
+          <button
+            class="analysis-btn"
+            :class="{ active: showSeismicSections }"
+            :style="{ '--btn-rgb': '235, 235, 245' } as any"
+            :disabled="activeModelBtn !== 'aquifer'"
+            @click="toggleAquiferModelPart('sections')"
+          >
+            {{ showSeismicSections ? "隐藏地震剖面" : "显示地震剖面" }}
+          </button>
+          <button
+            class="analysis-btn"
+            :class="{ active: showTrackedHorizons }"
+            :style="{ '--btn-rgb': '255, 190, 30' } as any"
+            :disabled="activeModelBtn !== 'aquifer'"
+            @click="toggleAquiferModelPart('horizons')"
+          >
+            {{ showTrackedHorizons ? "隐藏追踪层位" : "显示追踪层位" }}
+          </button>
+          <button
+            class="analysis-btn"
+            :class="{ active: showSimulatedAquifer }"
+            :style="{ '--btn-rgb': '40, 225, 205' } as any"
+            :disabled="activeModelBtn !== 'aquifer'"
+            @click="toggleAquiferModelPart('body')"
+          >
+            {{ showSimulatedAquifer ? "隐藏模拟含水层" : "显示模拟含水层" }}
           </button>
           <button
             class="analysis-btn"
@@ -395,7 +443,7 @@
             :style="{ '--btn-rgb': '120, 220, 120' } as any"
             @click="exitModelMode"
           >
-            返回地层视图
+            返回井网视图
           </button>
         </div>
       </div>
@@ -621,7 +669,8 @@ const showLayerInfo = ref(false);
 const selectedLayerInfo = ref<Record<string, string | number>>({});
 const selectedLayerId = ref<number | null>(null);
 
-const isModelMode = ref(false);
+/** 吉大地震剖面含水层模型作为本页默认主场景。 */
+const isModelMode = ref(true);
 /** Cesium 默认展示井网示意三维；演示地层块仍可切换查看。 */
 const cesiumContentMode = ref<"wellNetwork" | "demoLayers">("wellNetwork");
 const wellSceneGeometry = AQUIFER_WELL_SCENE_GEOMETRY;
@@ -682,36 +731,27 @@ const envelopeSummary = {
   totalWells: AQUIFER_WELL_SCENE_SUMMARY.totalWells,
   wellsWithDepth: AQUIFER_WELL_SCENE_SUMMARY.wellsWithDepthSticks,
 };
-const activeModelBtn = ref<"vp" | "aquifer" | null>(null);
+const activeModelBtn = ref<"vp" | "aquifer" | null>("aquifer");
+const showSeismicSections = ref(true);
+const showTrackedHorizons = ref(true);
+const showSimulatedAquifer = ref(true);
 const modelTagVisible = ref(false);
 const modelTagPos = ref({ x: 0, y: 0 });
 const modelTagLabel = ref("");
 
 const showAquiferInfoPanel = ref(false);
 
-const AQUIFER_INIT_CAMERA: CameraPose = {
-  position: { x: -0.732, y: 0.4859, z: 1.3004 },
-  target: { x: 0, y: 0, z: 0 },
-};
-const AQUIFER_INFO_CAMERA: CameraPose = {
-  position: { x: -0.535, y: -0.0803, z: 0.559 },
-  target: { x: 0, y: 0, z: 0 },
-};
-
 const aquiferInfoData = [
-  // 模型示意参数：用于 Three.js 含水层模型信息卡，非苏北井网实测值。
-  { label: "含水层类型", value: "孔隙承压含水层" },
-  { label: "含水层厚度", value: "28.5 m" },
-  { label: "顶板埋深", value: "215.3 m" },
-  { label: "底板埋深", value: "243.8 m" },
-  { label: "水位标高", value: "-12.6 m" },
-  { label: "渗透系数", value: "3.72 m/d" },
-  { label: "储水系数", value: "2.15 × 10⁻⁴" },
-  { label: "孔隙度", value: "18.6 %" },
-  { label: "水温", value: "22.3 ℃" },
-  { label: "矿化度", value: "1.05 g/L" },
-  { label: "水质类型", value: "HCO₃-Ca·Mg型" },
-  { label: "单位涌水量", value: "0.86 L/(s·m)" },
+  { label: "数据来源", value: "吉大 DZ1 / DZ2 / DZ5 地震振幅剖面" },
+  { label: "目标层位", value: "约 720 m 蓝色波谷同相轴" },
+  { label: "实测交点", value: "DZ1 第652道 / DZ2 第743道" },
+  { label: "CDP间距", value: "5 m（对方提供）" },
+  { label: "深度采样", value: "按 1.0 m 推定，待确认" },
+  { label: "DZ5位置", value: "平行 DZ1、偏移 3 km（模拟）" },
+  { label: "含水层厚度", value: "36 ± 4 m（模拟）" },
+  { label: "垂向夸张", value: "2.5×（仅用于展示）" },
+  { label: "模型性质", value: "科研展示用解释/模拟模型" },
+  { label: "限制说明", value: "不能替代正式地质解释成果" },
 ];
 
 let threeScene: THREE.Scene | null = null;
@@ -722,6 +762,7 @@ let threeRenderer: THREE.WebGLRenderer | null = null;
 let threeControls: OrbitControls | null = null;
 let threeAnimationId: number | null = null;
 let currentThreeModel: THREE.Object3D | null = null;
+let currentThreeModelSize: THREE.Vector3 | null = null;
 
 let allLayerEntities: Entity[] = [];
 let currentSingleEntity: Entity | null = null;
@@ -1269,7 +1310,8 @@ function initThreeScene() {
 
   threeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   threeRenderer.setSize(width, height);
-  threeRenderer.setPixelRatio(window.devicePixelRatio);
+  threeRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  threeRenderer.outputColorSpace = THREE.SRGBColorSpace;
   threeRenderer.toneMapping = THREE.ACESFilmicToneMapping;
   threeRenderer.toneMappingExposure = 1.2;
   threeContainer.value.appendChild(threeRenderer.domElement);
@@ -1290,6 +1332,16 @@ function initThreeScene() {
   threeRenderer.domElement.addEventListener("click", onThreeCanvasClick);
 
   animateThree();
+}
+
+function handleThreeResize() {
+  if (!threeContainer.value || !threeRenderer || !threeCamera) return;
+  const width = threeContainer.value.clientWidth;
+  const height = threeContainer.value.clientHeight;
+  if (width <= 0 || height <= 0) return;
+  threeCamera.aspect = width / height;
+  threeCamera.updateProjectionMatrix();
+  threeRenderer.setSize(width, height, false);
 }
 
 function onThreeCanvasClick(event: MouseEvent) {
@@ -1314,7 +1366,7 @@ function onThreeCanvasClick(event: MouseEvent) {
       y: event.clientY - rect.top,
     };
     modelTagLabel.value =
-      activeModelBtn.value === "vp" ? "查看vp20" : "查看vp含水层";
+      activeModelBtn.value === "vp" ? "查看vp20" : "查看含水层模型说明";
     modelTagVisible.value = true;
   } else {
     modelTagVisible.value = false;
@@ -1327,8 +1379,8 @@ function onModelTagClick() {
     analysisModalTitle.value = "VP20 三维分析";
     analysisModalSrc.value = aquifer3DAnalysisImageUrl;
   } else {
-    analysisModalTitle.value = "VP含水层动态演示";
-    analysisModalSrc.value = aquiferInversionDemoGifUrl;
+    showAquiferInfoPanel.value = true;
+    return;
   }
   analysisModalType.value = "image";
   analysisModalVisible.value = true;
@@ -1342,12 +1394,66 @@ function animateThree() {
   }
 }
 
+function framedCameraPose(size: THREE.Vector3): CameraPose {
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const distance = maxDim * 1.45;
+  return {
+    position: {
+      x: distance * 0.62,
+      y: distance * 0.42,
+      z: distance * 0.78,
+    },
+    target: { x: 0, y: 0, z: 0 },
+  };
+}
+
+function frameCurrentThreeModel() {
+  if (!threeCamera || !threeControls || !currentThreeModelSize) return;
+  const pose = framedCameraPose(currentThreeModelSize);
+  const maxDim = Math.max(
+    currentThreeModelSize.x,
+    currentThreeModelSize.y,
+    currentThreeModelSize.z,
+  );
+  threeCamera.near = Math.max(0.1, maxDim / 10_000);
+  threeCamera.far = maxDim * 100;
+  threeCamera.position.set(pose.position.x, pose.position.y, pose.position.z);
+  threeControls.target.set(0, 0, 0);
+  threeCamera.updateProjectionMatrix();
+  threeControls.update();
+}
+
+function applyAquiferModelVisibility() {
+  if (!currentThreeModel || activeModelBtn.value !== "aquifer") return;
+  currentThreeModel.traverse((object) => {
+    if (object.name.startsWith("SEISMIC_")) {
+      object.visible = showSeismicSections.value;
+    } else if (object.name.startsWith("HORIZON_")) {
+      object.visible = showTrackedHorizons.value;
+    } else if (object.name.startsWith("AQUIFER_")) {
+      object.visible = showSimulatedAquifer.value;
+    }
+  });
+}
+
+function toggleAquiferModelPart(part: "sections" | "horizons" | "body") {
+  if (part === "sections") {
+    showSeismicSections.value = !showSeismicSections.value;
+  } else if (part === "horizons") {
+    showTrackedHorizons.value = !showTrackedHorizons.value;
+  } else {
+    showSimulatedAquifer.value = !showSimulatedAquifer.value;
+  }
+  applyAquiferModelVisibility();
+}
+
 function loadThreeGLB(url: string, cameraPose?: CameraPose) {
   if (!threeScene || !threeCamera) return;
 
   if (currentThreeModel) {
     threeScene.remove(currentThreeModel);
     currentThreeModel = null;
+    currentThreeModelSize = null;
   }
 
   const dracoLoader = new DRACOLoader();
@@ -1367,6 +1473,8 @@ function loadThreeGLB(url: string, cameraPose?: CameraPose) {
 
       threeScene!.add(model);
       currentThreeModel = model;
+      currentThreeModelSize = size;
+      applyAquiferModelVisibility();
 
       if (cameraPose) {
         threeCamera!.position.set(
@@ -1383,19 +1491,9 @@ function loadThreeGLB(url: string, cameraPose?: CameraPose) {
           threeControls.update();
         }
       } else {
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const distance = maxDim * 1.8;
-        threeCamera!.position.set(
-          distance * 0.6,
-          distance * 0.5,
-          distance * 0.8,
-        );
-        threeCamera!.lookAt(0, 0, 0);
-        if (threeControls) {
-          threeControls.target.set(0, 0, 0);
-          threeControls.update();
-        }
+        frameCurrentThreeModel();
       }
+      dracoLoader.dispose();
     },
     undefined,
     (error) => {
@@ -1419,18 +1517,21 @@ async function loadAquiferModel() {
   activeModelBtn.value = "aquifer";
   await nextTick();
   initThreeScene();
-  loadThreeGLB(aquiferLayerGlbUrl, {
-    position: { x: -0.732, y: 0.4859, z: 1.3004 },
-    target: { x: 0, y: 0, z: 0 },
-  });
+  loadThreeGLB(aquiferLayerGlbUrl);
 }
 
-function exitModelMode() {
+async function exitModelMode() {
   modelTagVisible.value = false;
   showAquiferInfoPanel.value = false;
   isModelMode.value = false;
   activeModelBtn.value = null;
   disposeThreeScene();
+  await nextTick();
+  if (!viewer) {
+    await initCesium();
+  } else {
+    viewer.resize();
+  }
 }
 
 function logCameraPose() {
@@ -1498,7 +1599,6 @@ function animateCameraTo(pose: CameraPose, duration = 800): Promise<void> {
 
 function viewAquiferInfo() {
   if (activeModelBtn.value !== "aquifer") return;
-  animateCameraTo(AQUIFER_INFO_CAMERA, 900);
   showAquiferInfoPanel.value = true;
 }
 
@@ -1507,9 +1607,22 @@ function closeAquiferInfo() {
 }
 
 function resetAquiferCamera() {
-  if (activeModelBtn.value !== "aquifer") return;
+  if (
+    activeModelBtn.value !== "aquifer" ||
+    !currentThreeModelSize ||
+    !threeCamera
+  )
+    return;
   showAquiferInfoPanel.value = false;
-  animateCameraTo(AQUIFER_INIT_CAMERA, 900);
+  const maxDim = Math.max(
+    currentThreeModelSize.x,
+    currentThreeModelSize.y,
+    currentThreeModelSize.z,
+  );
+  threeCamera.near = Math.max(0.1, maxDim / 10_000);
+  threeCamera.far = maxDim * 100;
+  threeCamera.updateProjectionMatrix();
+  animateCameraTo(framedCameraPose(currentThreeModelSize), 900);
 }
 
 function disposeThreeScene() {
@@ -1521,6 +1634,7 @@ function disposeThreeScene() {
     threeScene.remove(currentThreeModel);
     currentThreeModel = null;
   }
+  currentThreeModelSize = null;
   if (threeControls) {
     threeControls.dispose();
     threeControls = null;
@@ -1538,10 +1652,12 @@ function disposeThreeScene() {
 }
 
 onMounted(() => {
-  initCesium();
+  window.addEventListener("resize", handleThreeResize);
+  void loadAquiferModel();
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener("resize", handleThreeResize);
   clearHoverClearTimer();
   disposeThreeScene();
   if (viewer) {
@@ -2085,6 +2201,68 @@ onBeforeUnmount(() => {
     }
   }
 
+  .seismic-model-legend {
+    position: absolute;
+    left: 440px;
+    bottom: 86px;
+    z-index: 22;
+    width: min(410px, calc(100vw - 720px));
+    min-width: 320px;
+    padding: 12px 14px;
+    color: #dff8ff;
+    font-size: 12px;
+    line-height: 1.45;
+    background: rgba(7, 18, 34, 0.84);
+    border: 1px solid rgba(52, 211, 235, 0.3);
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(10px);
+    pointer-events: none;
+  }
+
+  .seismic-model-legend__title {
+    margin-bottom: 7px;
+    color: #7eefff;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .seismic-model-legend__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .legend-swatch {
+    display: inline-block;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 6px;
+    border-radius: 999px;
+  }
+
+  .legend-swatch--section {
+    background: linear-gradient(90deg, #164eff, #fff 50%, #ef233c);
+  }
+
+  .legend-swatch--horizon {
+    background: #ffba14;
+    box-shadow: 0 0 8px rgba(255, 186, 20, 0.75);
+  }
+
+  .legend-swatch--body {
+    background: rgba(28, 232, 206, 0.75);
+    box-shadow: 0 0 8px rgba(28, 232, 206, 0.5);
+  }
+
+  .seismic-model-legend__notice {
+    margin-top: 8px;
+    padding-top: 7px;
+    color: #ffcf77;
+    border-top: 1px solid rgba(126, 239, 255, 0.16);
+  }
+
   .aquifer-info-overlay {
     position: absolute;
     right: 240px;
@@ -2240,7 +2418,19 @@ onBeforeUnmount(() => {
     z-index: 20;
     display: flex;
     flex-direction: column;
-    gap: 35px;
+    gap: 18px;
+    max-height: calc(100% - 100px);
+    padding: 4px 7px 4px 4px;
+    overflow-y: auto;
+
+    &::-webkit-scrollbar {
+      width: 3px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: rgba(23, 199, 254, 0.28);
+      border-radius: 3px;
+    }
   }
 
   .panel-group {
@@ -2251,7 +2441,7 @@ onBeforeUnmount(() => {
     padding: 14px 16px 16px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 12px;
   }
 
   .panel-group-title {
@@ -2267,12 +2457,12 @@ onBeforeUnmount(() => {
   .panel-group-body {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 10px;
   }
 
   .analysis-btn {
     --btn-rgb: 23, 199, 254;
-    padding: 10px 22px;
+    padding: 9px 20px;
     background: rgba(var(--btn-rgb), 0.18);
     color: rgb(var(--btn-rgb));
     border: 1px solid rgba(var(--btn-rgb), 0.5);
