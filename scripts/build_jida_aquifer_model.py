@@ -22,6 +22,8 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 from scipy.io import loadmat
@@ -33,6 +35,7 @@ SOURCE_DIR = ROOT / "src/Views/hanshuiceng/data/26-7吉大含水层资料"
 OUTPUT_DIR = ROOT / "src/Views/hanshuiceng/data/models"
 MODEL_PATH = OUTPUT_DIR / "jida_aquifer_seismic.glb"
 METADATA_PATH = OUTPUT_DIR / "jida_aquifer_seismic.metadata.json"
+ANALYSIS_IMAGE_PATH = OUTPUT_DIR / "jida_seismic_sections_analysis.png"
 
 DEPTH_INTERVAL_M = 1.0
 CDP_INTERVAL_M = 5.0
@@ -153,6 +156,78 @@ def presentation_horizon(
     smoothed = gaussian_filter1d(smoothed, sigma=45, mode="nearest")
     smoothed += target_seed_depth - float(smoothed[seed_trace_zero_based])
     return np.clip(smoothed, 630.0, 810.0).astype(np.float32)
+
+
+def write_analysis_image(
+    sections: dict[str, np.ndarray],
+    filtered: dict[str, np.ndarray],
+    horizons: dict[str, np.ndarray],
+    specs: dict[str, SectionSpec],
+) -> None:
+    """Write a reproducible overview used by the UI analysis library."""
+    figure, axes = plt.subplots(3, 1, figsize=(15, 10), constrained_layout=True)
+    figure.patch.set_facecolor("#061326")
+    figure.suptitle(
+        "Jilin University seismic sections and tracked aquifer horizon",
+        color="#e8fbff",
+        fontsize=16,
+        fontweight="bold",
+    )
+
+    for axis, spec in zip(axes, SECTION_SPECS):
+        data = filtered[spec.name]
+        valid = np.abs(sections[spec.name]) > 1.0e-6
+        clip = float(np.percentile(np.abs(data[valid]), 98.5))
+        trace_count = data.shape[1]
+        line_length_km = (trace_count - 1) * CDP_INTERVAL_M / 1000.0
+        axis.imshow(
+            data,
+            aspect="auto",
+            cmap="seismic",
+            vmin=-clip,
+            vmax=clip,
+            extent=(1, trace_count, data.shape[0] - 1, 0),
+            interpolation="nearest",
+            rasterized=True,
+        )
+        axis.plot(
+            np.arange(1, trace_count + 1),
+            horizons[spec.name],
+            color="#ffdc3f",
+            linewidth=1.7,
+            label="tracked trough horizon",
+        )
+        axis.axvline(
+            spec.intersection_trace,
+            color="#58f2d0",
+            linewidth=1.0,
+            linestyle="--",
+            alpha=0.9,
+        )
+        axis.set_ylim(min(data.shape[0] - 1, 1050), 420)
+        axis.set_facecolor("#061326")
+        axis.set_title(
+            f"{spec.name}  |  {trace_count:,} traces  |  {line_length_km:.3f} km",
+            loc="left",
+            color="#d9f8ff",
+            fontsize=11,
+        )
+        axis.set_ylabel("Depth sample / inferred m", color="#9fc3cc", fontsize=9)
+        axis.tick_params(colors="#87abb5", labelsize=8)
+        for spine in axis.spines.values():
+            spine.set_color("#1b7181")
+        axis.legend(
+            loc="lower right",
+            framealpha=0.72,
+            facecolor="#07182a",
+            edgecolor="#2b8998",
+            labelcolor="#eefcff",
+            fontsize=8,
+        )
+    axes[-1].set_xlabel("CDP trace number", color="#9fc3cc", fontsize=9)
+    ANALYSIS_IMAGE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(ANALYSIS_IMAGE_PATH, dpi=135, facecolor=figure.get_facecolor())
+    plt.close(figure)
 
 
 class GlbBuilder:
@@ -533,6 +608,8 @@ def build() -> None:
     dz5_shared_depth = float(horizons["DZ2"][dz2_dz5_trace])
     horizons["DZ5"] += dz5_shared_depth - horizons["DZ5"][dz5_spec.intersection_trace - 1]
 
+    write_analysis_image(sections, filtered, horizons, specs)
+
     horizon_material = builder.add_color_material(
         "TargetHorizon_blue_trough", [1.0, 0.73, 0.08, 1.0]
     )
@@ -616,6 +693,7 @@ def build() -> None:
     )
     print(f"Wrote {MODEL_PATH} ({MODEL_PATH.stat().st_size / 1024 / 1024:.2f} MiB)")
     print(f"Wrote {METADATA_PATH}")
+    print(f"Wrote {ANALYSIS_IMAGE_PATH}")
 
 
 if __name__ == "__main__":

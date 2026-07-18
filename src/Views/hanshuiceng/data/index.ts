@@ -10,9 +10,12 @@ import aquiferInversionDemoGifAssetUrl from "./vp动图.gif?url";
 import aquiferFormationVideoAssetUrl from "./含水层形成原理.mp4?url";
 import vp20ModelAssetUrl from "./models/vp20.glb?url";
 import aquiferLayerGlbAssetUrl from "./models/jida_aquifer_seismic.glb?url";
+import jidaSeismicSectionsAnalysisImageAssetUrl from "./models/jida_seismic_sections_analysis.png?url";
 
 export const aquiferModelUrl = aquiferModelAssetUrl;
 export const aquiferLayerGlbUrl = aquiferLayerGlbAssetUrl;
+export const jidaSeismicSectionsAnalysisImageUrl =
+    jidaSeismicSectionsAnalysisImageAssetUrl;
 export const vp20ModelUrl = vp20ModelAssetUrl;
 export const aquifer2DAnalysisImageUrl = aquifer2DAnalysisImageAssetUrl;
 export const aquifer3DAnalysisImageUrl = aquifer3DAnalysisImageAssetUrl;

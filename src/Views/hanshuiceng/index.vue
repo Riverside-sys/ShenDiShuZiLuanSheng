@@ -66,107 +66,57 @@
       </div>
     </div>
 
-    <!-- 地层操作按钮（顶部居中，横向排列） -->
-    <div class="layer-controls">
-      <button
-        class="layer-btn"
-        :class="{ active: cesiumContentMode === 'wellNetwork' }"
-        @click="switchCesiumContentMode('wellNetwork')"
-        :disabled="isLoading || isModelMode"
-      >
-        井网示意三维
-      </button>
-      <button
-        class="layer-btn"
-        :class="{ active: cesiumContentMode === 'demoLayers' }"
-        @click="switchCesiumContentMode('demoLayers')"
-        :disabled="isLoading || isModelMode"
-      >
-        演示地层块
-      </button>
-      <button
-        class="layer-btn"
-        @click="expandLayers"
-        :disabled="
-          cesiumContentMode !== 'demoLayers' ||
-          isExpanded ||
-          isLoading ||
-          isModelMode
-        "
-      >
-        展开地层
-      </button>
-      <button
-        class="layer-btn"
-        @click="closeLayers"
-        :disabled="
-          cesiumContentMode !== 'demoLayers' ||
-          !isExpanded ||
-          isLoading ||
-          isModelMode
-        "
-      >
-        关闭地层
-      </button>
-      <button
-        class="layer-btn"
-        :class="{ active: isPerspectiveMode }"
-        @click="togglePerspectiveMode"
-        :disabled="cesiumContentMode !== 'demoLayers' || isModelMode"
-      >
-        {{ isPerspectiveMode ? "取消透视" : "透视模式" }}
-      </button>
-      <button
-        class="layer-btn"
-        @click="toggleLayerSelector"
-        :disabled="cesiumContentMode !== 'demoLayers' || isModelMode"
-      >
-        选择地层
-      </button>
-      <button
-        class="layer-btn"
-        @click="handleResetView"
-        :disabled="isLoading || isModelMode"
-      >
-        重置视图
-      </button>
-    </div>
-
-    <!-- 地层选择器面板 -->
-    <div v-if="showLayerSelector" class="layer-selector-panel">
-      <h3>选择要显示的地层</h3>
-      <button class="close-btn" @click="showLayerSelector = false">×</button>
-      <div class="layer-list">
-        <button
-          v-for="(name, index) in geoLayerNames"
-          :key="index"
-          @click="showOnlyLayer(index)"
-          :disabled="isLoading"
-          :class="{ active: selectedSingleLayer === index }"
-          class="layer-select-btn"
-        >
-          {{ name }} ({{ index }})
-        </button>
+    <!-- 测网与地震解释是同一研究区的两级表达。 -->
+    <div v-if="!isModelMode" class="scene-bridge scene-bridge--survey">
+      <div class="scene-bridge__stage scene-bridge__stage--current">
+        <span class="scene-bridge__index">01</span>
+        <div>
+          <small>当前 · 测试区域</small>
+          <strong>含水层测网</strong>
+        </div>
       </div>
+      <div class="scene-bridge__flow" aria-hidden="true">
+        <span></span>
+        <i>→</i>
+      </div>
+      <button
+        class="scene-bridge__primary"
+        :disabled="isLoading"
+        @click="loadAquiferModel"
+      >
+        <span class="scene-bridge__index">02</span>
+        <span class="scene-bridge__primary-copy">
+          <small>DZ1 · DZ2 · DZ5</small>
+          <strong>地震剖面解释</strong>
+        </span>
+        <i aria-hidden="true">进入 ›</i>
+      </button>
     </div>
 
-    <!-- 地层信息面板 -->
-    <div v-if="showLayerInfo" class="layer-info-panel">
-      <h3>地层信息（演示）</h3>
-      <button class="close-btn" @click="showLayerInfo = false">×</button>
-      <p class="layer-info-note">以下数值为界面占位，非实测水文地质参数。</p>
-      <table>
-        <tbody>
-          <tr>
-            <th>属性</th>
-            <th>数值</th>
-          </tr>
-          <tr v-for="(value, key) in selectedLayerInfo" :key="key">
-            <td>{{ key }}</td>
-            <td>{{ value }}</td>
-          </tr>
-        </tbody>
-      </table>
+    <div v-else class="model-toolbar">
+      <button class="model-toolbar__back" @click="exitModelMode">
+        ← 返回测网
+      </button>
+      <span class="model-toolbar__divider"></span>
+      <button
+        :class="{ active: showSeismicSections }"
+        @click="toggleAquiferModelPart('sections')"
+      >
+        地震剖面
+      </button>
+      <button
+        :class="{ active: showTrackedHorizons }"
+        @click="toggleAquiferModelPart('horizons')"
+      >
+        追踪层位
+      </button>
+      <button
+        :class="{ active: showSimulatedAquifer }"
+        @click="toggleAquiferModelPart('body')"
+      >
+        模拟含水层
+      </button>
+      <button @click="viewAquiferInfo">模型说明</button>
     </div>
 
     <!-- 井网示意：点井档案卡 -->
@@ -294,7 +244,7 @@
 
     <!-- 井网示意：井列表侧栏（默认折叠） -->
     <div
-      v-if="cesiumContentMode === 'wellNetwork' && !isModelMode"
+      v-if="!isModelMode"
       class="well-list-sidebar"
       :class="{ collapsed: !wellListExpanded }"
     >
@@ -356,116 +306,49 @@
       <StratumBarChart />
     </div>
 
-    <!-- 右侧控制面板 -->
-    <div class="right-panel">
-      <!-- 含水层分析 -->
-      <div class="panel-group">
-        <div class="panel-group-title">含水层分析</div>
-        <div class="panel-group-body">
-          <button
-            v-for="item in analysisItems"
-            :key="item.label"
-            class="analysis-btn"
-            :style="{ '--btn-rgb': item.color } as any"
-            @click="openAnalysis(item)"
-          >
-            {{ item.label }}
-          </button>
-        </div>
-      </div>
+    <!-- 右侧数据面板：操作按需展开，证据图表始终可见。 -->
+    <aside class="right-data-panel">
+      <section class="analysis-fold" :class="{ open: analysisMenuExpanded }">
+        <button
+          class="analysis-fold__trigger"
+          :aria-expanded="analysisMenuExpanded"
+          @click="analysisMenuExpanded = !analysisMenuExpanded"
+        >
+          <span>
+            <small>ANALYSIS LIBRARY</small>
+            含水层分析
+          </span>
+          <i aria-hidden="true">⌄</i>
+        </button>
+        <Transition name="analysis-fold">
+          <div v-show="analysisMenuExpanded" class="analysis-fold__body">
+            <button
+              v-for="item in analysisItems"
+              :key="item.label"
+              class="analysis-fold__item"
+              :style="{ '--btn-rgb': item.color } as any"
+              @click="openAnalysis(item)"
+            >
+              <i aria-hidden="true"></i>
+              <span>{{ item.label }}</span>
+              <b aria-hidden="true">↗</b>
+            </button>
+          </div>
+        </Transition>
+      </section>
+      <JidaSeismicSurveyChart />
+      <JidaHorizonDepthChart />
+    </aside>
 
-      <!-- 含水层三维模型 -->
-      <div class="panel-group">
-        <div class="panel-group-title">含水层三维模型</div>
-        <div class="panel-group-body">
-          <button
-            class="analysis-btn"
-            :class="{ active: activeModelBtn === 'vp' }"
-            :style="{ '--btn-rgb': '0, 180, 255' } as any"
-            @click="loadVpModel"
-          >
-            VP模型转换效果
-          </button>
-          <button
-            class="analysis-btn"
-            :class="{ active: activeModelBtn === 'aquifer' }"
-            :style="{ '--btn-rgb': '255, 160, 60' } as any"
-            @click="loadAquiferModel"
-          >
-            吉大剖面含水层模型
-          </button>
-          <button
-            class="analysis-btn"
-            :class="{ active: showSeismicSections }"
-            :style="{ '--btn-rgb': '235, 235, 245' } as any"
-            :disabled="activeModelBtn !== 'aquifer'"
-            @click="toggleAquiferModelPart('sections')"
-          >
-            {{ showSeismicSections ? "隐藏地震剖面" : "显示地震剖面" }}
-          </button>
-          <button
-            class="analysis-btn"
-            :class="{ active: showTrackedHorizons }"
-            :style="{ '--btn-rgb': '255, 190, 30' } as any"
-            :disabled="activeModelBtn !== 'aquifer'"
-            @click="toggleAquiferModelPart('horizons')"
-          >
-            {{ showTrackedHorizons ? "隐藏追踪层位" : "显示追踪层位" }}
-          </button>
-          <button
-            class="analysis-btn"
-            :class="{ active: showSimulatedAquifer }"
-            :style="{ '--btn-rgb': '40, 225, 205' } as any"
-            :disabled="activeModelBtn !== 'aquifer'"
-            @click="toggleAquiferModelPart('body')"
-          >
-            {{ showSimulatedAquifer ? "隐藏模拟含水层" : "显示模拟含水层" }}
-          </button>
-          <button
-            class="analysis-btn"
-            :style="{ '--btn-rgb': '0, 220, 200' } as any"
-            :disabled="activeModelBtn !== 'aquifer'"
-            @click="viewAquiferInfo"
-          >
-            查看含水层信息
-          </button>
-          <button
-            class="analysis-btn"
-            :style="{ '--btn-rgb': '180, 140, 255' } as any"
-            :disabled="activeModelBtn !== 'aquifer'"
-            @click="resetAquiferCamera"
-          >
-            重置视角
-          </button>
-          <button
-            v-if="isModelMode"
-            class="analysis-btn"
-            :style="{ '--btn-rgb': '120, 220, 120' } as any"
-            @click="exitModelMode"
-          >
-            返回井网视图
-          </button>
-        </div>
-      </div>
-
-      <!-- 调试工具 -->
-      <button
-        class="analysis-btn camera-debug-btn"
-        :style="{ '--btn-rgb': '200, 200, 200' } as any"
-        :disabled="!isModelMode"
-        @click="logCameraPose"
-      >
-        输出相机姿态
-      </button>
-    </div>
-
-    <!-- 底部工具栏 -->
-    <div class="bottom-bar">
-      <Footer
-        @velocityModelShow="handleVelocityModelShow"
-        @inversionShow="handleInversionShow"
-      />
-    </div>
+    <!-- 底部只保留当前场景的相机复位。 -->
+    <button
+      class="scene-reset-dock"
+      type="button"
+      @click="isModelMode ? resetAquiferCamera() : handleResetView()"
+    >
+      <i aria-hidden="true">↻</i>
+      <span>{{ isModelMode ? "重置模型视角" : "重置测网视角" }}</span>
+    </button>
 
     <!-- 图片弹窗 -->
     <Teleport to="body">
@@ -517,7 +400,6 @@
         </div>
       </Transition>
 
-      <ImagePreviewPopup ref="imagePreviewPopupRef" />
     </Teleport>
   </div>
   <!-- 子场景容器 -->
@@ -530,14 +412,10 @@
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from "vue";
 import {
   Viewer,
-  Cartesian3,
   Color,
   SceneMode,
   ScreenSpaceEventType,
   Matrix4,
-  HeadingPitchRoll,
-  Transforms,
-  Math as CesiumMath,
   Entity,
 } from "cesium";
 import * as THREE from "three";
@@ -545,11 +423,11 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-import Footer from "./components/Footer/index.vue";
-import ImagePreviewPopup from "./components/Toolbar/ImagePreviewPopup.vue";
 import WaterLevelChart from "./components/Charts/WaterLevelChart.vue";
 import PorosityRadarChart from "./components/Charts/PorosityRadarChart.vue";
 import StratumBarChart from "./components/Charts/StratumBarChart.vue";
+import JidaSeismicSurveyChart from "./components/Charts/JidaSeismicSurveyChart.vue";
+import JidaHorizonDepthChart from "./components/Charts/JidaHorizonDepthChart.vue";
 import {
   aquiferInversionDemoGifUrl,
   aquiferSlicePreviewGifUrl,
@@ -559,13 +437,9 @@ import {
   aquiferWellConstrainedInversionImageUrl,
   aquiferFullWaveformInversionImageUrl,
   aquiferFormationVideoUrl,
-  vp20ModelUrl,
   aquiferLayerGlbUrl,
+  jidaSeismicSectionsAnalysisImageUrl,
 } from "./data";
-import {
-  layerModelUrls,
-  layerNames as geoLayerNames,
-} from "./data/GeologicalStratification";
 import {
   AQUIFER_WELL_SCENE_GEOMETRY,
   AQUIFER_WELL_SCENE_SUMMARY,
@@ -598,6 +472,12 @@ interface AnalysisItem {
 
 const analysisItems: AnalysisItem[] = [
   {
+    label: "吉大三测线剖面分析",
+    src: jidaSeismicSectionsAnalysisImageUrl,
+    type: "image",
+    color: "255, 205, 64",
+  },
+  {
     label: "含水层2D分析",
     src: aquifer2DAnalysisImageUrl,
     type: "image",
@@ -616,6 +496,12 @@ const analysisItems: AnalysisItem[] = [
     color: "255, 170, 50",
   },
   {
+    label: "速度模型动图",
+    src: aquiferSlicePreviewGifUrl,
+    type: "image",
+    color: "48, 201, 245",
+  },
+  {
     label: "测井约束反演",
     src: aquiferWellConstrainedInversionImageUrl,
     type: "image",
@@ -626,6 +512,12 @@ const analysisItems: AnalysisItem[] = [
     src: aquiferFullWaveformInversionImageUrl,
     type: "image",
     color: "255, 100, 130",
+  },
+  {
+    label: "反演结果展示",
+    src: aquiferInversionDemoGifUrl,
+    type: "image",
+    color: "101, 246, 197",
   },
   {
     label: "形成原理演示",
@@ -653,26 +545,13 @@ function closeAnalysisModal() {
 
 const cesiumContainer = ref<HTMLElement | null>(null);
 const threeContainer = ref<HTMLElement | null>(null);
-const imagePreviewPopupRef = ref<InstanceType<typeof ImagePreviewPopup> | null>(
-  null,
-);
 let viewer: Viewer | null = null;
 const showSubscene = ref(false);
 
 const isLoading = ref(false);
-const isExpanded = ref(false);
-const isPerspectiveMode = ref(false);
-const perspectiveLayerId = ref(0);
-const showLayerSelector = ref(false);
-const selectedSingleLayer = ref<number | null>(null);
-const showLayerInfo = ref(false);
-const selectedLayerInfo = ref<Record<string, string | number>>({});
-const selectedLayerId = ref<number | null>(null);
-
-/** 吉大地震剖面含水层模型作为本页默认主场景。 */
-const isModelMode = ref(true);
-/** Cesium 默认展示井网示意三维；演示地层块仍可切换查看。 */
-const cesiumContentMode = ref<"wellNetwork" | "demoLayers">("wellNetwork");
+/** 测网代表含水层测试区域，是本页默认入口。 */
+const isModelMode = ref(false);
+const analysisMenuExpanded = ref(false);
 const wellSceneGeometry = AQUIFER_WELL_SCENE_GEOMETRY;
 const selectedWellId = ref<string | null>(null);
 const hoveredWellId = ref<string | null>(null);
@@ -731,7 +610,7 @@ const envelopeSummary = {
   totalWells: AQUIFER_WELL_SCENE_SUMMARY.totalWells,
   wellsWithDepth: AQUIFER_WELL_SCENE_SUMMARY.wellsWithDepthSticks,
 };
-const activeModelBtn = ref<"vp" | "aquifer" | null>("aquifer");
+const activeModelBtn = ref<"aquifer" | null>(null);
 const showSeismicSections = ref(true);
 const showTrackedHorizons = ref(true);
 const showSimulatedAquifer = ref(true);
@@ -764,8 +643,6 @@ let threeAnimationId: number | null = null;
 let currentThreeModel: THREE.Object3D | null = null;
 let currentThreeModelSize: THREE.Vector3 | null = null;
 
-let allLayerEntities: Entity[] = [];
-let currentSingleEntity: Entity | null = null;
 let wellSceneEntities: AquiferWellSceneEntities | null = null;
 let lastWellHighlightState: {
   hoveredWellId: string | null;
@@ -773,86 +650,6 @@ let lastWellHighlightState: {
 } | null = null;
 let hoverClearTimer: ReturnType<typeof setTimeout> | null = null;
 const HOVER_CLEAR_DELAY_MS = 90;
-
-const BASE_LNG = 117.22089726144343;
-const BASE_LAT = 31.833569328835598;
-const BASE_HEIGHT = 60;
-const LAYER_GAP_DEFAULT = 10;
-const LAYER_GAP_EXPANDED = 20;
-
-function generateLayerInfo(layerId: number) {
-  // 演示占位：地下场景当前没有逐层实测属性，避免用随机数冒充真实资料。
-  const layerName =
-    layerId >= 0 && layerId < geoLayerNames.length
-      ? geoLayerNames[layerId]
-      : "未知地层";
-  return {
-    地层ID: layerId,
-    地层名称: layerName,
-    数据说明: "演示占位，非实测属性",
-    厚度: "暂无实测",
-    孔隙度: "暂无实测",
-    渗透率: "暂无实测",
-    含水率: "暂无实测",
-    密度: "暂无实测",
-  };
-}
-
-async function loadLayerModel(
-  index: number,
-  baseHeight = BASE_HEIGHT,
-): Promise<Entity> {
-  if (!viewer) throw new Error("Viewer not initialized");
-
-  const url = layerModelUrls[index];
-  const layerHeight = baseHeight + index * LAYER_GAP_DEFAULT;
-
-  const position = Cartesian3.fromDegrees(BASE_LNG, BASE_LAT, layerHeight);
-  const heading = CesiumMath.toRadians(0);
-  const pitch = CesiumMath.toRadians(-90);
-  const roll = CesiumMath.toRadians(90);
-  const hpr = new HeadingPitchRoll(heading, pitch, roll);
-  const orientation = Transforms.headingPitchRollQuaternion(position, hpr);
-
-  const entity = viewer.entities.add({
-    position,
-    orientation,
-    model: {
-      uri: url,
-      minimumPixelSize: 128,
-      maximumScale: 800,
-    },
-  });
-
-  return entity;
-}
-
-async function loadAllLayers() {
-  if (!viewer || isLoading.value) return;
-  isLoading.value = true;
-
-  try {
-    clearAllEntities();
-
-    for (let i = 0; i < geoLayerNames.length; i++) {
-      try {
-        const entity = await loadLayerModel(i);
-        allLayerEntities.push(entity);
-      } catch (e) {
-        console.error(`加载地层 ${i} 失败:`, e);
-      }
-    }
-
-    if (allLayerEntities.length > 0) {
-      viewer.trackedEntity = allLayerEntities[0];
-      await viewer.zoomTo(allLayerEntities[0]);
-    }
-  } catch (error) {
-    console.error("加载所有地层失败:", error);
-  } finally {
-    isLoading.value = false;
-  }
-}
 
 async function loadWellNetworkScene() {
   if (!viewer || isLoading.value) return;
@@ -870,27 +667,6 @@ async function loadWellNetworkScene() {
   } finally {
     isLoading.value = false;
   }
-}
-
-async function switchCesiumContentMode(mode: "wellNetwork" | "demoLayers") {
-  if (!viewer || isLoading.value || cesiumContentMode.value === mode) return;
-  cesiumContentMode.value = mode;
-  showLayerInfo.value = false;
-  showLayerSelector.value = false;
-  isExpanded.value = false;
-  isPerspectiveMode.value = false;
-  selectedSingleLayer.value = null;
-  closeWellArchivePopup();
-  closeEnvelopeSummary();
-  clearWellInteractionState();
-  viewer.scene.canvas.style.cursor = "";
-
-  if (mode === "wellNetwork") {
-    await loadWellNetworkScene();
-  } else {
-    await loadAllLayers();
-  }
-  viewer.scene.requestRender();
 }
 
 function syncWellHighlight() {
@@ -1011,142 +787,8 @@ async function selectWellFromList(wellId: string) {
 
 function clearAllEntities() {
   if (!viewer) return;
-  allLayerEntities.forEach((entity) => {
-    if (entity && viewer!.entities.contains(entity)) {
-      viewer!.entities.remove(entity);
-    }
-  });
-  allLayerEntities = [];
-
-  if (currentSingleEntity && viewer.entities.contains(currentSingleEntity)) {
-    viewer.entities.remove(currentSingleEntity);
-    currentSingleEntity = null;
-  }
-
   clearAquiferWellSceneEntities(viewer, wellSceneEntities);
   wellSceneEntities = null;
-}
-
-function expandLayers() {
-  if (!viewer || isExpanded.value) return;
-  isExpanded.value = true;
-
-  allLayerEntities.forEach((entity, index) => {
-    if (entity && entity.position) {
-      const expandedHeight = BASE_HEIGHT + index * LAYER_GAP_EXPANDED;
-      entity.position = Cartesian3.fromDegrees(
-        BASE_LNG,
-        BASE_LAT,
-        expandedHeight,
-      ) as any;
-    }
-  });
-}
-
-function closeLayers() {
-  if (!viewer || !isExpanded.value) return;
-  isExpanded.value = false;
-
-  allLayerEntities.forEach((entity, index) => {
-    if (entity && entity.position) {
-      const closedHeight = BASE_HEIGHT + index * LAYER_GAP_DEFAULT;
-      entity.position = Cartesian3.fromDegrees(
-        BASE_LNG,
-        BASE_LAT,
-        closedHeight,
-      ) as any;
-    }
-  });
-}
-
-function togglePerspectiveMode() {
-  if (!viewer) return;
-
-  if (selectedSingleLayer.value !== null) {
-    if (currentSingleEntity && viewer.entities.contains(currentSingleEntity)) {
-      viewer.entities.remove(currentSingleEntity);
-      currentSingleEntity = null;
-    }
-    allLayerEntities.forEach((entity) => {
-      if (entity) entity.show = true;
-    });
-    selectedSingleLayer.value = null;
-  }
-
-  isPerspectiveMode.value = !isPerspectiveMode.value;
-
-  if (isPerspectiveMode.value) {
-    applyPerspective(0);
-  } else {
-    clearPerspective();
-  }
-}
-
-function applyPerspective(targetLayerId: number) {
-  perspectiveLayerId.value = targetLayerId;
-
-  allLayerEntities.forEach((entity, index) => {
-    if (entity && entity.model) {
-      if (index === targetLayerId) {
-        entity.model.color = Color.WHITE as any;
-      } else {
-        entity.model.color = Color.WHITE.withAlpha(0.3) as any;
-      }
-    }
-  });
-}
-
-function clearPerspective() {
-  allLayerEntities.forEach((entity) => {
-    if (entity && entity.model) {
-      entity.model.color = Color.WHITE as any;
-    }
-  });
-}
-
-function toggleLayerSelector() {
-  showLayerSelector.value = !showLayerSelector.value;
-}
-
-async function showOnlyLayer(index: number) {
-  if (!viewer || isLoading.value) return;
-  isLoading.value = true;
-
-  try {
-    selectedSingleLayer.value = index;
-
-    if (isPerspectiveMode.value) {
-      isPerspectiveMode.value = false;
-      clearPerspective();
-    }
-
-    allLayerEntities.forEach((entity) => {
-      if (entity) entity.show = false;
-    });
-
-    if (currentSingleEntity && viewer.entities.contains(currentSingleEntity)) {
-      viewer.entities.remove(currentSingleEntity);
-      currentSingleEntity = null;
-    }
-
-    currentSingleEntity = await loadLayerModel(index);
-    viewer.trackedEntity = currentSingleEntity;
-    await viewer.zoomTo(currentSingleEntity);
-  } catch (e) {
-    console.error(`加载地层 ${index} 失败:`, e);
-  } finally {
-    isLoading.value = false;
-  }
-}
-
-function handleLayerClick(layerId: number) {
-  if (isPerspectiveMode.value) {
-    applyPerspective(layerId);
-  } else {
-    selectedLayerId.value = layerId;
-    selectedLayerInfo.value = generateLayerInfo(layerId);
-    showLayerInfo.value = true;
-  }
 }
 
 const initCesium = async () => {
@@ -1189,57 +831,32 @@ const initCesium = async () => {
   viewer.imageryLayers.removeAll();
 
   try {
-    if (cesiumContentMode.value === "wellNetwork") {
-      await loadWellNetworkScene();
-    } else {
-      await loadAllLayers();
-    }
+    await loadWellNetworkScene();
 
     viewer.screenSpaceEventHandler.setInputAction((movement: any) => {
       if (!viewer) return;
       const pickedFeature = viewer.scene.pick(movement.position);
-
-      if (cesiumContentMode.value === "wellNetwork") {
-        const picks = viewer.scene.drillPick(movement.position, 16) as Array<{
-          id?: unknown;
-        }>;
-        const hover = resolveAquiferWellSceneHover(
-          picks.length > 0 ? picks : [pickedFeature],
-        );
-        if (hover.wellId) {
-          openWellArchivePopup(hover.wellId);
-          return;
-        }
-        if (hover.onEnvelope) {
-          openEnvelopeSummary();
-          return;
-        }
-        closeWellArchivePopup();
-        closeEnvelopeSummary();
+      const picks = viewer.scene.drillPick(movement.position, 16) as Array<{
+        id?: unknown;
+      }>;
+      const hover = resolveAquiferWellSceneHover(
+        picks.length > 0 ? picks : [pickedFeature],
+      );
+      if (hover.wellId) {
+        openWellArchivePopup(hover.wellId);
         return;
       }
-
-      if (pickedFeature && pickedFeature.id) {
-        let layerIndex = allLayerEntities.findIndex(
-          (entity) => entity === pickedFeature.id,
-        );
-        if (layerIndex === -1 && currentSingleEntity === pickedFeature.id) {
-          layerIndex = selectedSingleLayer.value ?? -1;
-        }
-        if (layerIndex !== -1) {
-          handleLayerClick(layerIndex);
-        }
+      if (hover.onEnvelope) {
+        openEnvelopeSummary();
+        return;
       }
+      closeWellArchivePopup();
+      closeEnvelopeSummary();
     }, ScreenSpaceEventType.LEFT_CLICK);
 
     viewer.screenSpaceEventHandler.setInputAction((movement: any) => {
       if (!viewer) return;
       const canvas = viewer.scene.canvas;
-
-      if (cesiumContentMode.value !== "wellNetwork") {
-        canvas.style.cursor = "";
-        return;
-      }
 
       const picks = viewer.scene.drillPick(movement.endPosition, 16) as Array<{
         id?: unknown;
@@ -1260,41 +877,15 @@ const handleResetView = async () => {
   if (!viewer) return;
 
   clearAllEntities();
-
-  isExpanded.value = false;
-  isPerspectiveMode.value = false;
-  perspectiveLayerId.value = 0;
-  selectedSingleLayer.value = null;
-  selectedLayerId.value = null;
-  showLayerInfo.value = false;
-  showLayerSelector.value = false;
   closeWellArchivePopup();
   closeEnvelopeSummary();
   clearWellInteractionState();
 
   viewer.camera.lookAtTransform(Matrix4.IDENTITY);
 
-  if (cesiumContentMode.value === "wellNetwork") {
-    await loadWellNetworkScene();
-  } else {
-    await loadAllLayers();
-  }
+  await loadWellNetworkScene();
 
   viewer.scene.requestRender();
-};
-
-const handleVelocityModelShow = () => {
-  imagePreviewPopupRef.value?.open(
-    aquiferSlicePreviewGifUrl,
-    "三维盖帽状水层速度模型",
-  );
-};
-
-const handleInversionShow = () => {
-  imagePreviewPopupRef.value?.open(
-    aquiferInversionDemoGifUrl,
-    "反演结果动态演示",
-  );
 };
 
 function initThreeScene() {
@@ -1365,8 +956,7 @@ function onThreeCanvasClick(event: MouseEvent) {
       x: event.clientX - rect.left,
       y: event.clientY - rect.top,
     };
-    modelTagLabel.value =
-      activeModelBtn.value === "vp" ? "查看vp20" : "查看含水层模型说明";
+    modelTagLabel.value = "查看含水层模型说明";
     modelTagVisible.value = true;
   } else {
     modelTagVisible.value = false;
@@ -1375,15 +965,7 @@ function onThreeCanvasClick(event: MouseEvent) {
 
 function onModelTagClick() {
   modelTagVisible.value = false;
-  if (activeModelBtn.value === "vp") {
-    analysisModalTitle.value = "VP20 三维分析";
-    analysisModalSrc.value = aquifer3DAnalysisImageUrl;
-  } else {
-    showAquiferInfoPanel.value = true;
-    return;
-  }
-  analysisModalType.value = "image";
-  analysisModalVisible.value = true;
+  showAquiferInfoPanel.value = true;
 }
 
 function animateThree() {
@@ -1502,15 +1084,6 @@ function loadThreeGLB(url: string, cameraPose?: CameraPose) {
   );
 }
 
-async function loadVpModel() {
-  modelTagVisible.value = false;
-  isModelMode.value = true;
-  activeModelBtn.value = "vp";
-  await nextTick();
-  initThreeScene();
-  loadThreeGLB(vp20ModelUrl);
-}
-
 async function loadAquiferModel() {
   modelTagVisible.value = false;
   isModelMode.value = true;
@@ -1527,34 +1100,7 @@ async function exitModelMode() {
   activeModelBtn.value = null;
   disposeThreeScene();
   await nextTick();
-  if (!viewer) {
-    await initCesium();
-  } else {
-    viewer.resize();
-  }
-}
-
-function logCameraPose() {
-  if (!threeCamera || !threeControls) return;
-  const pos = threeCamera.position;
-  const target = threeControls.target;
-  const info = {
-    position: {
-      x: +pos.x.toFixed(4),
-      y: +pos.y.toFixed(4),
-      z: +pos.z.toFixed(4),
-    },
-    target: {
-      x: +target.x.toFixed(4),
-      y: +target.y.toFixed(4),
-      z: +target.z.toFixed(4),
-    },
-    fov: threeCamera.fov,
-    near: threeCamera.near,
-    far: threeCamera.far,
-  };
-  console.log("📷 当前相机姿态:", JSON.stringify(info, null, 2));
-  console.table(info);
+  viewer?.resize();
 }
 
 function animateCameraTo(pose: CameraPose, duration = 800): Promise<void> {
@@ -1653,7 +1199,7 @@ function disposeThreeScene() {
 
 onMounted(() => {
   window.addEventListener("resize", handleThreeResize);
-  void loadAquiferModel();
+  void initCesium();
 });
 
 onBeforeUnmount(() => {
@@ -1694,180 +1240,136 @@ onBeforeUnmount(() => {
     }
   }
 
-  .layer-controls {
+  .scene-bridge,
+  .model-toolbar {
     position: absolute;
-    top: 16px;
+    top: 18px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 20;
+    z-index: 24;
     display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-    max-width: min(1100px, calc(100% - 24px));
-    gap: 10px;
+    align-items: center;
+    border: 1px solid rgba(40, 211, 235, 0.32);
+    background: rgba(5, 18, 34, 0.9);
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(14px);
   }
 
-  .layer-btn {
-    min-width: 90px;
-    padding: 10px 20px;
-    font-size: 14px;
-    border-radius: 6px;
-    border: 1px solid #17c7fe;
-    background: rgba(16, 29, 41, 0.85);
-    color: #17c7fe;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-    outline: none;
-    transition:
-      background 0.2s,
-      color 0.2s;
-
-    &:hover:not(:disabled) {
-      background: #17c7fe;
-      color: #101d29;
-      border-color: #17c7fe;
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    &.active {
-      background: #17c7fe;
-      color: #101d29;
-      border-color: #17c7fe;
+  .scene-bridge {
+    width: 350px;
+    box-sizing: border-box;
+    gap: 0;
+    padding: 5px;
+    border-radius: 10px;
+    border-color: rgba(54, 215, 231, .26);
+    background:
+      linear-gradient(90deg, rgba(8, 31, 50, .97), rgba(5, 18, 34, .94)),
+      rgba(5, 18, 34, .94);
+    box-shadow: 0 14px 38px rgba(0, 0, 0, .34), inset 0 1px 0 rgba(110, 237, 244, .07);
+    &::before {
+      content: "";
+      position: absolute;
+      top: -1px;
+      left: 18px;
+      width: 78px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #44dce9, transparent);
+      box-shadow: 0 0 8px rgba(68, 220, 233, .7);
     }
   }
 
-  .layer-selector-panel {
-    position: absolute;
-    top: 70px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(16, 29, 41, 0.92);
-    border-radius: 14px;
-    padding: 20px 18px 16px 18px;
-    width: 280px;
-    max-height: 400px;
-    overflow-y: auto;
-    box-shadow:
-      0 4px 24px 0 rgba(23, 199, 254, 0.18),
-      0 1.5px 8px 0 rgba(0, 0, 0, 0.25);
-    border: 1.5px solid #17c7fe;
-    z-index: 30;
-    backdrop-filter: blur(2px);
-
-    h3 {
-      margin-top: 0;
-      margin-bottom: 18px;
-      color: #17c7fe;
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: 1px;
-    }
-  }
-
-  .layer-list {
+  .scene-bridge__stage {
     display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: 8px;
+    width: 105px;
+    padding: 7px 8px;
+    line-height: 1.1;
+    small {
+      display: block;
+      margin-bottom: 4px;
+      color: rgba(128, 195, 207, .55);
+      font-size: 8px;
+      letter-spacing: .4px;
+    }
+    strong { color: #e5faff; font-size: 12px; font-weight: 650; white-space: nowrap; }
   }
 
-  .layer-select-btn {
-    padding: 10px 14px;
-    background: rgba(16, 29, 41, 0.8);
-    border: 1px solid #22384a;
-    border-radius: 8px;
-    cursor: pointer;
-    text-align: left;
-    transition: all 0.2s;
-    color: #eaf6ff;
-    font-size: 14px;
-    font-weight: 500;
-
-    &:hover {
-      background: rgba(23, 199, 254, 0.1);
-      border-color: #17c7fe;
-      color: #17c7fe;
-    }
-
-    &.active {
-      background: rgba(23, 199, 254, 0.2);
-      border-color: #17c7fe;
-      color: #17c7fe;
-      box-shadow: 0 0 12px rgba(23, 199, 254, 0.3);
-    }
-
-    &:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
+  .scene-bridge__index {
+    color: rgba(74, 219, 233, .48);
+    font: 600 9px/1 "DIN Alternate", "Arial Narrow", sans-serif;
+    letter-spacing: .6px;
   }
 
-  .layer-info-panel {
-    position: absolute;
-    top: 70px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(16, 29, 41, 0.92);
-    border-radius: 14px;
-    padding: 20px 18px 16px 18px;
-    width: 260px;
-    box-shadow:
-      0 4px 24px 0 rgba(23, 199, 254, 0.18),
-      0 1.5px 8px 0 rgba(0, 0, 0, 0.25);
-    border: 1.5px solid #17c7fe;
-    z-index: 30;
-    backdrop-filter: blur(2px);
-
-    h3 {
-      margin-top: 0;
-      margin-bottom: 10px;
-      color: #17c7fe;
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: 1px;
-    }
-
-    .layer-info-note {
-      margin: 0 0 14px;
-      color: #d9bd75;
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
-    table {
+  .scene-bridge__flow {
+    width: 30px;
+    height: 24px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    span {
       width: 100%;
-      border-collapse: separate;
-      border-spacing: 0;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(49, 211, 230, .08), rgba(56, 216, 233, .65));
     }
+    i {
+      position: absolute;
+      right: -2px;
+      color: #52dee8;
+      font: normal 11px/1 sans-serif;
+    }
+  }
 
-    th,
-    td {
-      padding: 10px 8px;
-      text-align: left;
-      border-bottom: 1px solid #22384a;
-      font-size: 14px;
-      color: #eaf6ff;
-      transition:
-        background 0.2s,
-        color 0.2s;
-    }
+  .scene-bridge button,
+  .model-toolbar button {
+    border: 0;
+    color: #dffaff;
+    cursor: pointer;
+    transition: .2s ease;
+    &:disabled { opacity: .42; cursor: wait; }
+  }
 
-    th {
-      background: #112233;
-      color: #17c7fe;
-      font-weight: 700;
-      border-bottom: 2px solid #17c7fe;
+  .scene-bridge__primary {
+    width: 205px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    text-align: left;
+    background: linear-gradient(112deg, rgba(9, 101, 128, .72), rgba(15, 170, 165, .62));
+    box-shadow: inset 0 0 0 1px rgba(91, 238, 235, .28), 0 5px 16px rgba(5, 131, 145, .18);
+    .scene-bridge__index { color: rgba(223, 255, 255, .52); }
+    .scene-bridge__primary-copy { flex: 1; min-width: 0; }
+    small { display: block; margin-bottom: 3px; color: rgba(218, 251, 252, .55); font-size: 8px; letter-spacing: .8px; }
+    strong { display: block; color: #efffff; font-size: 12px; font-weight: 650; white-space: nowrap; }
+    > i { color: rgba(231, 255, 255, .76); font: normal 10px/1 sans-serif; white-space: nowrap; }
+    &:hover:not(:disabled) {
+      transform: translateX(2px);
+      background: linear-gradient(112deg, rgba(10, 126, 155, .82), rgba(18, 191, 183, .72));
+      box-shadow: inset 0 0 0 1px rgba(118, 255, 249, .5), 0 7px 22px rgba(20, 199, 204, .2);
     }
+  }
 
-    tr:hover td {
-      background: rgba(23, 199, 254, 0.08);
-      color: #17c7fe;
+  .model-toolbar {
+    gap: 5px;
+    padding: 6px;
+    border-radius: 10px;
+    button {
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: transparent;
+      color: rgba(210, 242, 247, .68);
+      font-size: 12px;
+      &:hover, &.active { color: #eaffff; background: rgba(38, 200, 218, .18); }
+      &.active { box-shadow: inset 0 0 0 1px rgba(48, 220, 230, .35); }
     }
+  }
+  .model-toolbar__back { color: #5ee5d4 !important; }
+  .model-toolbar__divider { width: 1px; height: 22px; background: rgba(62, 210, 226, .2); }
+
+  @media (max-width: 1400px) {
+    .scene-bridge { left: calc(50% + 30px); }
   }
 
   .well-archive-popup {
@@ -2410,17 +1912,17 @@ onBeforeUnmount(() => {
     }
   }
 
-  .right-panel {
+  .right-data-panel {
     position: absolute;
-    right: 24px;
-    top: 50%;
-    transform: translateY(-50%);
+    right: 18px;
+    top: 28px;
+    bottom: 82px;
+    width: 326px;
     z-index: 20;
     display: flex;
     flex-direction: column;
-    gap: 18px;
-    max-height: calc(100% - 100px);
-    padding: 4px 7px 4px 4px;
+    gap: 12px;
+    padding-right: 4px;
     overflow-y: auto;
 
     &::-webkit-scrollbar {
@@ -2433,82 +1935,101 @@ onBeforeUnmount(() => {
     }
   }
 
-  .panel-group {
-    border: 1px solid rgba(23, 199, 254, 0.35);
-    border-radius: 10px;
-    background: rgba(10, 22, 40, 0.75);
-    backdrop-filter: blur(10px);
-    padding: 14px 16px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+  .analysis-fold {
+    flex: 0 0 auto;
+    overflow: hidden;
+    border: 1px solid rgba(33, 202, 229, 0.24);
+    border-radius: 12px;
+    background: rgba(5, 17, 31, .92);
+    backdrop-filter: blur(12px);
   }
 
-  .panel-group-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: #17c7fe;
-    letter-spacing: 1px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(23, 199, 254, 0.2);
-    text-align: center;
-  }
-
-  .panel-group-body {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .analysis-btn {
-    --btn-rgb: 23, 199, 254;
-    padding: 9px 20px;
-    background: rgba(var(--btn-rgb), 0.18);
-    color: rgb(var(--btn-rgb));
-    border: 1px solid rgba(var(--btn-rgb), 0.5);
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    white-space: nowrap;
-    backdrop-filter: blur(8px);
-    transition: all 0.2s;
-
-    &:hover:not(:disabled) {
-      background: rgba(var(--btn-rgb), 0.35);
-      border-color: rgba(var(--btn-rgb), 0.8);
-      box-shadow: 0 0 16px rgba(var(--btn-rgb), 0.35);
-    }
-
-    &.active {
-      background: rgba(var(--btn-rgb), 0.4);
-      border-color: rgb(var(--btn-rgb));
-      box-shadow: 0 0 20px rgba(var(--btn-rgb), 0.45);
-    }
-
-    &:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
-      box-shadow: none;
-    }
-  }
-
-  .camera-debug-btn {
-    align-self: stretch;
-    font-size: 12px;
-    padding: 8px 14px;
-    border-style: dashed;
-  }
-
-  .bottom-bar {
-    position: absolute;
-    bottom: 0;
-    left: 0;
+  .analysis-fold__trigger {
     width: 100%;
     display: flex;
-    justify-content: center;
-    pointer-events: none;
-    z-index: 20;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 14px;
+    border: 0;
+    background: linear-gradient(110deg, rgba(26, 174, 201, .12), transparent);
+    color: #e3fbff;
+    cursor: pointer;
+    text-align: left;
+    span { font-size: 14px; font-weight: 650; }
+    small { display: block; margin-bottom: 2px; color: rgba(71, 218, 235, .52); font-size: 8px; letter-spacing: 1.4px; }
+    i { color: #53dfe8; font: normal 20px/1 sans-serif; transition: transform .22s ease; }
+  }
+  .analysis-fold.open .analysis-fold__trigger i { transform: rotate(180deg); }
+
+  .analysis-fold__body {
+    display: grid;
+    gap: 6px;
+    padding: 0 9px 10px;
+    border-top: 1px solid rgba(45, 205, 226, .08);
+  }
+
+  .analysis-fold__item {
+    --btn-rgb: 23, 199, 254;
+    display: grid;
+    grid-template-columns: 7px 1fr auto;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 8px;
+    border: 0;
+    border-bottom: 1px solid rgba(var(--btn-rgb), .1);
+    background: transparent;
+    color: rgba(223, 246, 250, .72);
+    cursor: pointer;
+    text-align: left;
+    font-size: 11px;
+    transition: .18s ease;
+    i { width: 5px; height: 5px; border-radius: 50%; background: rgb(var(--btn-rgb)); box-shadow: 0 0 8px rgba(var(--btn-rgb), .7); }
+    b { color: rgba(var(--btn-rgb), .5); font-weight: 400; }
+    &:hover { color: #fff; background: rgba(var(--btn-rgb), .1); padding-left: 11px; }
+  }
+
+  .analysis-fold-enter-active,
+  .analysis-fold-leave-active { transition: opacity .2s ease, transform .2s ease; transform-origin: top; }
+  .analysis-fold-enter-from,
+  .analysis-fold-leave-to { opacity: 0; transform: translateY(-5px); }
+
+  .scene-reset-dock {
+    position: absolute;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    z-index: 24;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 15px 9px 10px;
+    border: 1px solid rgba(59, 210, 229, .32);
+    border-radius: 22px;
+    background: rgba(5, 20, 36, .9);
+    color: rgba(218, 248, 252, .72);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, .3), inset 0 1px 0 rgba(111, 231, 240, .08);
+    backdrop-filter: blur(12px);
+    cursor: pointer;
+    font-size: 11px;
+    letter-spacing: .3px;
+    transition: .2s ease;
+    i {
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(53, 211, 225, .12);
+      color: #53dfe8;
+      font: normal 16px/1 sans-serif;
+    }
+    &:hover {
+      color: #fff;
+      border-color: rgba(80, 230, 237, .6);
+      background: rgba(7, 31, 50, .94);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, .34), 0 0 16px rgba(43, 202, 217, .12);
+    }
+    &:focus-visible { outline: 2px solid #55e1e8; outline-offset: 3px; }
   }
 }
 

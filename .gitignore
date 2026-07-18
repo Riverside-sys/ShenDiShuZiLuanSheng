@@ -13,6 +13,7 @@ src/Views/hanshuiceng/data/*
 src/Views/hanshuiceng/data/models/*
 !src/Views/hanshuiceng/data/models/jida_aquifer_seismic.glb
 !src/Views/hanshuiceng/data/models/jida_aquifer_seismic.metadata.json
+!src/Views/hanshuiceng/data/models/jida_seismic_sections_analysis.png
 src/Views/saltCave/data/*
 !src/Views/saltCave/data/index.ts
 
