@@ -1,0 +1,110 @@
+{
+  "metric_name": "含水层交付数据域有效信息可视化覆盖率",
+  "reference_domain": "吉大交付 DZ1/DZ2/DZ5 地震振幅矩阵",
+  "quality_threshold": 0.75,
+  "render_fidelity": 0.99,
+  "valid_epsilon": 1e-06,
+  "sections": [
+    {
+      "name": "DZ1",
+      "rows": 1308,
+      "traces": 2334,
+      "total_cells": 3052872,
+      "valid_cells": 2940635,
+      "valid_rate_percent": 96.32356024097965,
+      "qualified_traces": 2151,
+      "qualified_trace_rate_percent": 92.15938303341902,
+      "qualified_valid_cells": 2709027,
+      "data_coverage_percent": 88.73699912737906,
+      "effective_coverage_percent": 87.84962913610528,
+      "sha256": "d409430d7fe4a69bb83eca0290c86ad34a54ce6453d9db70a17143c96ff0b715"
+    },
+    {
+      "name": "DZ2",
+      "rows": 1301,
+      "traces": 1822,
+      "total_cells": 2370422,
+      "valid_cells": 2254749,
+      "valid_rate_percent": 95.12015160169793,
+      "qualified_traces": 1665,
+      "qualified_trace_rate_percent": 91.38309549945114,
+      "qualified_valid_cells": 2061305,
+      "data_coverage_percent": 86.9594106028378,
+      "effective_coverage_percent": 86.08981649680943,
+      "sha256": "326fd0e84b2b441ce5035cb4cf1f0473cac98ef5928452d32565b300e785632a"
+    },
+    {
+      "name": "DZ5",
+      "rows": 1377,
+      "traces": 3201,
+      "total_cells": 4407777,
+      "valid_cells": 4253182,
+      "valid_rate_percent": 96.49267646707172,
+      "qualified_traces": 2849,
+      "qualified_trace_rate_percent": 89.00343642611683,
+      "qualified_valid_cells": 3785989,
+      "data_coverage_percent": 85.89338798219602,
+      "effective_coverage_percent": 85.03445410237406,
+      "sha256": "96259672bf146124f46f92728045e3447b0ab17c9176217d983f68404eca7c1c"
+    }
+  ],
+  "overall": {
+    "total_cells": 9831071,
+    "valid_cells": 9448566,
+    "qualified_traces": 6665,
+    "total_traces": 7357,
+    "qualified_valid_cells": 8556321,
+    "invalid_cells": 382505,
+    "valid_rate_percent": 96.10922350169173,
+    "qualified_trace_rate_percent": 90.59399211635177,
+    "data_coverage_percent": 87.03345749410212,
+    "effective_coverage_percent": 86.1631229191611
+  },
+  "sensitivity": [
+    {
+      "quality_threshold": 0.25,
+      "qualified_traces": 7071,
+      "effective_coverage_percent": 91.42763723301357,
+      "per_section_percent": {
+        "DZ1": 91.4997140397632,
+        "DZ2": 91.27778766818736,
+        "DZ5": 91.45830245041888
+      }
+    },
+    {
+      "quality_threshold": 0.5,
+      "qualified_traces": 6959,
+      "effective_coverage_percent": 89.97150890274314,
+      "per_section_percent": {
+        "DZ1": 90.4327846041367,
+        "DZ2": 89.899468533451,
+        "DZ5": 89.69076657008738
+      }
+    },
+    {
+      "quality_threshold": 0.75,
+      "qualified_traces": 6665,
+      "effective_coverage_percent": 86.1631229191611,
+      "per_section_percent": {
+        "DZ1": 87.84962913610528,
+        "DZ2": 86.08981649680943,
+        "DZ5": 85.03445410237406
+      }
+    },
+    {
+      "quality_threshold": 1.0,
+      "qualified_traces": 5886,
+      "effective_coverage_percent": 76.17489966250879,
+      "per_section_percent": {
+        "DZ1": 78.39847821985332,
+        "DZ2": 73.0778941471181,
+        "DZ5": 76.3003391505514
+      }
+    }
+  ],
+  "limitations": [
+    "评价对象是交付数据域，不是真实地下含水层的物理面积或体积。",
+    "DZ5空间位置、剖面间插值及含水层厚度为科研展示模拟，不计入覆盖率分子。",
+    "0.75为本次验证采用的工程质量阈值，正式验收前应在测试方案中固化。"
+  ]
+}
