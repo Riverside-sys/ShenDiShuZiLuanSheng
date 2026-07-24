@@ -59,66 +59,23 @@ const modelLoaded = ref(false);
 
 // 查看器
 let viewer: any = null;
-let cleanupInterval: any = null;
 let uiMutationObserver: MutationObserver | null = null;
+let initialLoadTimer: ReturnType<typeof setTimeout> | null = null;
+let uiCleanupTimer: ReturnType<typeof setTimeout> | null = null;
+let previousBodyOverflow = "";
 let router = useRouter();
 
-// 终极UI清理函数
-const ultimateUICleanup = () => {
-    // 1. 移除已知的GaussianSplats UI元素
-    const uiSelectors = [
-        ".lil-gui",
-        ".progressBarOuterContainer",
-        ".spinnerOuterContainer0",
-        ".spinnerOuterContainer1",
-        ".spinnerOuterContainer2",
-        ".infoPanel",
-        '[class*="progressBar"]',
-        '[class*="spinner"]',
-        ".splatTree",
-        ".controlPanel",
-    ];
+const gsplatUISelector =
+    ".lil-gui, .progressBarOuterContainer, .spinnerOuterContainer0, .spinnerOuterContainer1, .spinnerOuterContainer2, .infoPanel, [class*='progressBar'], [class*='spinner'], .splatTree, .controlPanel";
 
-    uiSelectors.forEach((selector) => {
-        document.querySelectorAll(selector).forEach((el) => {
-            if (el && el.parentNode) {
-                el.parentNode.removeChild(el);
-            }
-        });
+// GaussianSplats may append its optional UI outside the viewer container. Limit
+// cleanup to those known nodes rather than polling every element in the document.
+const hideGsplatUI = (root: ParentNode = document) => {
+    root.querySelectorAll(gsplatUISelector).forEach((element) => {
+        const uiElement = element as HTMLElement;
+        uiElement.style.pointerEvents = "none";
+        uiElement.style.display = "none";
     });
-
-    // 2. 查找并处理阻挡元素
-    const allElements = document.querySelectorAll("*");
-    allElements.forEach((el) => {
-        const style = window.getComputedStyle(el);
-        const rect = el.getBoundingClientRect();
-
-        // 检查是否是全屏覆盖且有高z-index的元素
-        if (style.position === "absolute" || style.position === "fixed") {
-            const zIndex = parseInt(style.zIndex);
-
-            // 如果是全屏覆盖的高z-index元素
-            if (
-                !isNaN(zIndex) &&
-                zIndex > 100 &&
-                rect.width >= window.innerWidth * 0.8 &&
-                rect.height >= window.innerHeight * 0.8
-            ) {
-                // 确保不是我们自己的元素
-                if (
-                    !containerRef.value?.contains(el) &&
-                    !el.closest(".mine-gsplat-viewer")
-                ) {
-                    // 不直接删除，而是禁用pointer-events
-                    (el as HTMLElement).style.pointerEvents = "none";
-                    console.log("🛡️ 禁用了阻挡元素的pointer-events");
-                }
-            }
-        }
-    });
-
-    // 3. 强制重置body的overflow
-    document.body.style.overflow = "hidden";
 };
 
 // 设置MutationObserver来实时监控和清理UI
@@ -132,14 +89,9 @@ const setupUIObserver = () => {
             mutation.addedNodes.forEach((node) => {
                 if (node.nodeType === Node.ELEMENT_NODE) {
                     const element = node as Element;
-                    const className = element.className || "";
-
-                    // 检测到GaussianSplats UI元素立即清理
                     if (
-                        className.includes("lil-gui") ||
-                        className.includes("progressBar") ||
-                        className.includes("spinner") ||
-                        className.includes("infoPanel")
+                        element.matches(gsplatUISelector) ||
+                        element.querySelector(gsplatUISelector)
                     ) {
                         needsCleanup = true;
                     }
@@ -148,7 +100,11 @@ const setupUIObserver = () => {
         });
 
         if (needsCleanup) {
-            setTimeout(ultimateUICleanup, 0);
+            if (uiCleanupTimer) clearTimeout(uiCleanupTimer);
+            uiCleanupTimer = setTimeout(() => {
+                hideGsplatUI();
+                uiCleanupTimer = null;
+            }, 0);
         }
     });
 
@@ -219,7 +175,10 @@ const loadModel = async () => {
 
         loadingMessage.value = "创建3D查看器...";
 
-        // 立即开始UI监控
+        previousBodyOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+
+        // 仅监听已知 GaussianSplats UI 的新增节点，不再定时扫描整页 DOM。
         setupUIObserver();
 
         // 根据跨域隔离状态配置查看器
@@ -287,16 +246,10 @@ const loadModel = async () => {
         // 启动查看器
         viewer.start();
 
-        // 等待一下让所有UI元素创建完成，然后清理
-        setTimeout(() => {
-            ultimateUICleanup();
-
-            // 设置定期清理
-            if (cleanupInterval) {
-                clearInterval(cleanupInterval);
-            }
-            cleanupInterval = setInterval(ultimateUICleanup, 1000);
-
+        // 给库的可选 UI 一次完成创建的机会；之后由 MutationObserver 按事件处理。
+        uiCleanupTimer = setTimeout(() => {
+            hideGsplatUI();
+            uiCleanupTimer = null;
             modelLoaded.value = true;
             console.log("✅ 模型加载完成，UI已清理");
         }, 2000);
@@ -337,7 +290,7 @@ onMounted(() => {
     console.log("🚀 Mines Roadway GSplat Viewer mounted");
     console.log("📍 当前路由:", window.location.href);
     console.log("🔗 路由路径:", window.location.pathname);
-    setTimeout(loadModel, 500);
+    initialLoadTimer = setTimeout(loadModel, 500);
 });
 
 onUnmounted(() => {
@@ -349,11 +302,8 @@ onUnmounted(() => {
         uiMutationObserver = null;
     }
 
-    // 清理定时器
-    if (cleanupInterval) {
-        clearInterval(cleanupInterval);
-        cleanupInterval = null;
-    }
+    if (initialLoadTimer) clearTimeout(initialLoadTimer);
+    if (uiCleanupTimer) clearTimeout(uiCleanupTimer);
 
     // 清理查看器
     if (viewer) {
@@ -365,11 +315,8 @@ onUnmounted(() => {
         viewer = null;
     }
 
-    // 最后一次清理
-    ultimateUICleanup();
-
     // 恢复body样式
-    document.body.style.overflow = "";
+    document.body.style.overflow = previousBodyOverflow;
 });
 </script>
 

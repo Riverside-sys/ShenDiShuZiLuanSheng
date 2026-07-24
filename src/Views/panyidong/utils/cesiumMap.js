@@ -36,6 +36,9 @@ export const initCesiumScene = async (container, modelPath) => {
       shadows: false,
       baseLayer: undefined,
       terrainProvider: undefined,
+      // 静止时不再持续占用 CPU/GPU；相机、加载状态或交互变化时由 Cesium 请求重绘。
+      requestRenderMode: true,
+      maximumRenderTimeChange: Infinity,
       contextOptions: {
         webgl: {
           alpha: true,
@@ -66,7 +69,8 @@ export const initCesiumScene = async (container, modelPath) => {
     viewer.scene.globe.depthTestAgainstTerrain = true;
     viewer.scene.backgroundColor = Color.TRANSPARENT;
     viewer.scene.skyAtmosphere.show = false;
-    viewer.scene.fxaa = true;
+    // 只保留后处理 FXAA，避免同时启用两套抗锯齿带来的重复全屏开销。
+    viewer.scene.fxaa = false;
     viewer.scene.postProcessStages.fxaa.enabled = true;
     viewer.scene.sun.show = false;
     viewer.scene.moon.show = false;
@@ -104,7 +108,11 @@ export const initCesiumScene = async (container, modelPath) => {
     });
 
     // 绑定事件（点击拾取坐标等）
-    bindEvents(viewer);
+    const eventHandler = bindEvents(viewer);
+    // ScreenSpaceEventHandler 不会随 Viewer 自动释放，显式保存以便路由切换时销毁。
+    viewer.__disposePanYiDongEvents = () => {
+      if (!eventHandler.isDestroyed()) eventHandler.destroy();
+    };
 
     viewer.scene.requestRender();
 
@@ -119,7 +127,8 @@ export const initCesiumScene = async (container, modelPath) => {
 
 // 内部使用的事件绑定函数
 function bindEvents(viewer) {
-  new ScreenSpaceEventHandler(viewer.scene.canvas).setInputAction(
+  const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+  handler.setInputAction(
     (event) => {
       const pick = viewer.scene.pick(event.position);
       const earthPosition = viewer.scene.pickPosition(event.position);
@@ -156,6 +165,7 @@ function bindEvents(viewer) {
     },
     ScreenSpaceEventType.LEFT_CLICK
   );
+  return handler;
 }
 
 // 场景重置函数
@@ -282,28 +292,35 @@ export const setupRoamControls = (viewer, options = {}) => {
     if (["w", "a", "s", "d", "q", "e"].includes(k)) {
       keyState[k] = true;
       e.preventDefault();
+      startTicking();
     }
-    if (e.key === "Shift") keyState.shift = true;
+    if (e.key === "Shift") {
+      keyState.shift = true;
+      startTicking();
+    }
   };
 
   const onKeyUp = (e) => {
     const k = e.key.toLowerCase();
     if (["w", "a", "s", "d", "q", "e"].includes(k)) keyState[k] = false;
     if (e.key === "Shift") keyState.shift = false;
+    stopTickingIfIdle();
   };
 
   const onBlur = () => {
     keyState.w = keyState.a = keyState.s = keyState.d = false;
     keyState.q = keyState.e = keyState.shift = false;
+    stopTickingIfIdle();
   };
 
   window.addEventListener("keydown", onKeyDown);
   window.addEventListener("keyup", onKeyUp);
   window.addEventListener("blur", onBlur);
 
+  const isMoving = () => keyState.w || keyState.a || keyState.s || keyState.d || keyState.q || keyState.e;
+
   const tick = () => {
     if (stopped) return;
-    raf = requestAnimationFrame(tick);
 
     const now = performance.now();
     const dt = Math.min((now - last) / 1000, 0.05);
@@ -321,10 +338,27 @@ export const setupRoamControls = (viewer, options = {}) => {
     if (keyState.q) { camera.moveDown(step); moved = true; }
     if (keyState.e) { camera.moveUp(step); moved = true; }
 
-    if (moved) viewer.scene.requestRender();
+    if (moved) {
+      viewer.scene.requestRender();
+      raf = requestAnimationFrame(tick);
+    } else {
+      raf = 0;
+    }
   };
 
-  raf = requestAnimationFrame(tick);
+  const startTicking = () => {
+    if (!stopped && !raf && isMoving()) {
+      last = performance.now();
+      raf = requestAnimationFrame(tick);
+    }
+  };
+
+  const stopTickingIfIdle = () => {
+    if (!isMoving() && raf) {
+      cancelAnimationFrame(raf);
+      raf = 0;
+    }
+  };
 
   return () => {
     stopped = true;

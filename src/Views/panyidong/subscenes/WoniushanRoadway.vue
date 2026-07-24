@@ -268,6 +268,10 @@ const requestRender = () => {
   renderRequested = true;
 };
 
+// 先让浏览器绘制已上传的模型和加载状态，再开始耗时的中线分析。
+const nextFrame = () =>
+  new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
 const updateInitialOverviewCamera = () => {
   if (!camera || !controls || !mergedBBox || !centerlineCurve) return;
 
@@ -531,6 +535,8 @@ const loadMergedMesh = async () => {
 
     loadingMessage.value = "正在分析巷道中线...";
     await nextTick();
+    requestRender();
+    await nextFrame();
     computeCenterline(geometry);
     setupRoamSpeed();
     updateInitialOverviewCamera();

@@ -115,6 +115,7 @@ const destroyViewer = () => {
     teardownRoamControls = null;
   }
   if (viewer && !viewer.isDestroyed?.()) {
+    viewer.__disposePanYiDongEvents?.();
     viewer.destroy();
   }
   viewer = null;
