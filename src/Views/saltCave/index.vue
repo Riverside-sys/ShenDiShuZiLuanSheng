@@ -39,6 +39,9 @@
 
       <!-- 顶部操作栏 -->
       <div class="top-action-bar">
+        <button class="action-btn" @click="router.push('/saltCave/subscenes/inversion')">
+          <span>水平盐穴三维分析</span>
+        </button>
         <button
           class="action-btn"
           :class="{ active: activeAction === 'patrol' }"
