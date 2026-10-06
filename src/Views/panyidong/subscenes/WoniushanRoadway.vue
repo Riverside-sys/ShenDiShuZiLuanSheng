@@ -104,6 +104,13 @@
             {{ mode === "auto" ? "暂停巡检" : "自动巡检" }}
           </button>
           <button class="ctrl-btn" @click="handleResetView">重置视角</button>
+          <button
+            class="ctrl-btn"
+            :class="{ active: coverageVisible }"
+            @click="coverageVisible = true"
+          >
+            覆盖率统计
+          </button>
           <div class="segment-jumper">
             <span class="jumper-label">分段定位</span>
             <button
@@ -133,6 +140,13 @@
       <div v-if="mode === 'roam' && !pointerLocked" class="roam-hint">
         点击场景获取焦点后即可使用 WASD 漫游
       </div>
+
+      <!-- 2.1FA 覆盖可视化指标核查弹窗 -->
+      <CoverageModal
+        :visible="coverageVisible"
+        v-bind="roadwayCoverageStats"
+        @close="coverageVisible = false"
+      />
     </div>
   </div>
 </template>
@@ -151,12 +165,16 @@ import InspectionProgressPanel from "../components/Charts/Woniushan/InspectionPr
 import EnvMonitorPanel from "../components/Charts/Woniushan/EnvMonitorPanel.vue";
 import DeviceStatusPanel from "../components/Charts/Woniushan/DeviceStatusPanel.vue";
 import AlertDistributionPanel from "../components/Charts/Woniushan/AlertDistributionPanel.vue";
+import CoverageModal from "@/components/CoverageModal/index.vue";
+import { roadwayCoverageStats } from "@/data/coverageStats";
 
 const router = useRouter();
 
 const viewerRef = ref<HTMLDivElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const uiLayer = ref<HTMLDivElement | null>(null);
+
+const coverageVisible = ref(false);
 
 const isLoading = ref(true);
 const loadingMessage = ref("正在初始化场景...");
