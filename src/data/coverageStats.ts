@@ -152,3 +152,55 @@ export const aquiferCoverageStats: CoverageStatsData = {
     "平台已将三条实测振幅剖面、约 720 m 波谷追踪层位及相关井层数据（37 口校正井位、8 口结构化测井、93,048 个测井原始点）组织到同一含水层场景统一展示。",
   ],
 };
+
+/**
+ * 2.3FA 盐穴场景覆盖率统计
+ * 数据来源：《中期指标自测报告》第二章及环节通过率表。
+ * 口径：对第 i 个盐穴模型定义覆盖状态 C(i) = S₁(i)×S₂(i)×S₃(i)×S₄(i)×S₅(i)，
+ * 场景覆盖率 R = ΣC(i) ÷ 8 × 100% = 8/8 = 100%。
+ */
+export const saltCaveCoverageStats: CoverageStatsData = {
+  title: "盐穴场景覆盖率统计",
+  subtitle: "盐穴场景数字孪生覆盖可视化率 · 测试项 2.3FA",
+  finalRate: 100,
+  finalRateLabel: "场景覆盖率",
+  targetRate: 85,
+  formula:
+    "R = ( Σ C(i) ) ÷ 8 × 100% = 8 ÷ 8 × 100%，其中 C(i) = S₁(i) × S₂(i) × S₃(i) × S₄(i) × S₅(i)",
+  chips: [
+    { label: "统计对象", value: "8 个独立盐穴三维模型（.ply）" },
+    { label: "空间对象", value: "盐穴腔体 · 井场设施 · 井间连接管道" },
+    { label: "数据处理环节", value: "5 个" },
+  ],
+  matrixTitle: "独立模型分项判定（8 个模型 × 5 项检查）",
+  matrixNameLabel: "独立模型",
+  checkColumns: [
+    "文件完整性",
+    "坐标信息",
+    "轻量化条件",
+    "材质可识别",
+    "格式兼容性",
+  ],
+  matrixRows: [
+    { name: "盐穴模型 1", checks: [1, 1, 1, 1, 1] },
+    { name: "盐穴模型 2", checks: [1, 1, 1, 1, 1] },
+    { name: "盐穴模型 3", checks: [1, 1, 1, 1, 1] },
+    { name: "盐穴模型 4", checks: [1, 1, 1, 1, 1] },
+    { name: "盐穴模型 5", checks: [1, 1, 1, 1, 1] },
+    { name: "盐穴模型 6", checks: [1, 1, 1, 1, 1] },
+    { name: "盐穴模型 7", checks: [1, 1, 1, 1, 1] },
+    { name: "盐穴模型 8", checks: [1, 1, 1, 1, 1] },
+  ],
+  stages: [
+    { code: "S₁", name: "文件完整性校验", passed: 8, total: 8 },
+    { code: "S₂", name: "坐标信息提取", passed: 8, total: 8 },
+    { code: "S₃", name: "轻量化条件检查", passed: 8, total: 8 },
+    { code: "S₄", name: "材质信息可识别性", passed: 8, total: 8 },
+    { code: "S₅", name: "格式兼容性验证", passed: 8, total: 8 },
+  ],
+  notes: [
+    "覆盖判定：5 个环节全部通过的模型认定为已覆盖（C(i)=1），任一环节未通过认定为未覆盖（C(i)=0）。",
+    "盐穴场景共 8 个独立模型文件（.ply），覆盖盐穴腔体、井场设施及井间连接管道三类空间对象；平台加载后腔体几何形态完整，表面纹理清晰，具备可视化表达条件。",
+    "8 个模型全部通过 5 个数据处理环节验证，场景覆盖率 100%。",
+  ],
+};

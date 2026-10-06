@@ -70,6 +70,15 @@
           <span class="action-icon">&#x1f3e0;</span>
           <span>总览</span>
         </button>
+        <!-- 2.3FA 覆盖可视化指标核查入口 -->
+        <button
+          class="action-btn"
+          :class="{ active: coverageVisible }"
+          @click="coverageVisible = true"
+        >
+          <span class="action-icon">&#x1d4dd;</span>
+          <span>覆盖率统计</span>
+        </button>
         <button class="action-btn debug" @click="logPose">
           <span>输出姿态</span>
         </button>
@@ -88,6 +97,13 @@
       </div>
     </div>
   </div>
+
+  <!-- 2.3FA 覆盖可视化指标核查弹窗 -->
+  <CoverageModal
+    :visible="coverageVisible"
+    v-bind="saltCaveCoverageStats"
+    @close="coverageVisible = false"
+  />
 
   <!-- 子场景容器 -->
   <div class="subscene-container" v-if="showSubscene">
@@ -111,6 +127,8 @@ import WidgetPanel03 from "./components/Charts/WidgetPanel03.vue"
 import WidgetPanel04 from "./components/Charts/WidgetPanel04.vue"
 import WidgetPanel05 from "./components/Charts/WidgetPanel05.vue"
 import WidgetPanel06 from "./components/Charts/WidgetPanel06.vue"
+import CoverageModal from "@/components/CoverageModal/index.vue"
+import { saltCaveCoverageStats } from "@/data/coverageStats"
 
 const route = useRoute()
 const router = useRouter()
@@ -120,6 +138,9 @@ const uiLayer = ref<HTMLElement | null>(null)
 const viewerContainerRef = ref<HTMLElement | null>(null)
 const isLoading = ref(false)
 const loadingMessage = ref("")
+
+/** 2.3FA 覆盖率统计弹窗 */
+const coverageVisible = ref(false)
 
 const showLabel = ref(false)
 const labelPos = ref({ x: 0, y: 0 })
