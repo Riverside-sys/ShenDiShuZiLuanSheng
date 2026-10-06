@@ -332,6 +332,16 @@
             </button>
             <Transition name="analysis-fold">
               <div v-show="analysisMenuExpanded" class="analysis-fold__body">
+                <!-- 2.2FA 覆盖可视化指标核查入口 -->
+                <button
+                  class="analysis-fold__item"
+                  style="--btn-rgb: 101, 246, 197"
+                  @click="coverageVisible = true"
+                >
+                  <i aria-hidden="true"></i>
+                  <span>覆盖率统计</span>
+                  <b aria-hidden="true">↗</b>
+                </button>
                 <button
                   v-for="item in analysisItems"
                   :key="item.label"
@@ -413,6 +423,13 @@
       </Transition>
 
     </Teleport>
+
+    <!-- 2.2FA 覆盖可视化指标核查弹窗 -->
+    <CoverageModal
+      :visible="coverageVisible"
+      v-bind="aquiferCoverageStats"
+      @close="coverageVisible = false"
+    />
   </div>
   <!-- 子场景容器 -->
   <div class="subscene-container" v-if="showSubscene">
@@ -467,6 +484,8 @@ import {
   resolveAquiferWellSceneHover,
   type AquiferWellSceneEntities,
 } from "./utils/aquiferWellScene";
+import CoverageModal from "@/components/CoverageModal/index.vue";
+import { aquiferCoverageStats } from "@/data/coverageStats";
 
 type WellListFilter = "all" | "logged" | "coordsOnly";
 
@@ -543,6 +562,9 @@ const analysisModalVisible = ref(false);
 const analysisModalTitle = ref("");
 const analysisModalSrc = ref("");
 const analysisModalType = ref<"image" | "video">("image");
+
+/** 2.2FA 覆盖率统计弹窗 */
+const coverageVisible = ref(false);
 
 function openAnalysis(item: AnalysisItem) {
   analysisModalTitle.value = item.label;
